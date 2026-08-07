@@ -84,26 +84,29 @@ model Brand {
 }
 
 model Category {
-  id       String     @id @default(cuid())
-  name     String
-  slug     String     @unique
-  parentId String?
-  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryToCategory")
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryToCategory")
+  imageUrl  String?
+  imageAlt  String?
 
-  products Product[]
+  products  Product[]
 
   @@map("categories")
 }
 
 model Collection {
-  id          String    @id @default(cuid())
-  name        String
-  slug        String    @unique
-  description String
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  description   String
   coverImageUrl String?
-  launchedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  coverImageAlt String?
+  launchedAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   products    Product[]
 
@@ -271,6 +274,54 @@ model Coupon {
   orders           Order[]
 
   @@map("coupons")
+}
+
+// ---------------------------------------------------------------------------
+// Conteúdo institucional (Home / Marketing)
+// ---------------------------------------------------------------------------
+
+model Banner {
+  id             String    @id @default(cuid())
+  title          String
+  subtitle       String?
+  ctaLabel       String
+  ctaHref        String
+  imageUrlDesktop String
+  imageUrlMobile String
+  position       Int       @default(0)
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([isActive, position])
+  @@map("banners")
+}
+
+/// Vitrine social exibida na Home. Alimentada manualmente (ou via painel
+/// administrativo) até que uma conta Instagram Business seja conectada —
+/// nesse ponto, a implementação de SocialPostRepository passa a consultar a
+/// Instagram Graph API em vez desta tabela, sem alterar o restante da app.
+model SocialPost {
+  id         String   @id @default(cuid())
+  imageUrl   String
+  permalink  String
+  caption    String?
+  position   Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([isActive, position])
+  @@map("social_posts")
+}
+
+model NewsletterSubscriber {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  subscribedAt  DateTime  @default(now())
+  unsubscribedAt DateTime?
+
+  @@map("newsletter_subscribers")
 }
 
 // ---------------------------------------------------------------------------

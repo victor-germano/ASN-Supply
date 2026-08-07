@@ -5,6 +5,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { MarketingModule } from './modules/marketing/marketing.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { HealthModule } from './modules/health/health.module';
     ]),
     PrismaModule,
     HealthModule,
+    CatalogModule,
+    MarketingModule,
   ],
   providers: [
     {

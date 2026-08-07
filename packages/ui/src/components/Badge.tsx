@@ -9,7 +9,9 @@ const badgeStyles = cva(
     variants: {
       tone: {
         neutral: 'bg-bone-200 text-ink',
-        olive: 'bg-olive-500 text-white',
+        // olive-500 contra branco fica em 3.99:1 (abaixo do mínimo AA de
+        // 4.5:1 para texto pequeno) — olive-700 garante contraste seguro.
+        olive: 'bg-olive-700 text-white',
         outline: 'border border-ink/20 text-ink',
         error: 'bg-error/10 text-error',
       },

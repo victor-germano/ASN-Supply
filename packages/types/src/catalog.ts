@@ -1,5 +1,11 @@
 import type { ImageAsset, Money } from './common';
 
+/** Imagem de capa leve (sem dimensões) — usada onde o container já define um aspect-ratio fixo via CSS. */
+export interface CoverImage {
+  url: string;
+  alt: string;
+}
+
 export interface Brand {
   id: string;
   name: string;
@@ -12,6 +18,7 @@ export interface Category {
   name: string;
   slug: string;
   parentId: string | null;
+  image: CoverImage | null;
 }
 
 export interface Collection {
@@ -19,7 +26,7 @@ export interface Collection {
   name: string;
   slug: string;
   description: string;
-  coverImage: ImageAsset | null;
+  coverImage: CoverImage | null;
   /** Data de lançamento — usada para ordenar "Lançamentos" na Home. */
   launchedAt: string | null;
 }

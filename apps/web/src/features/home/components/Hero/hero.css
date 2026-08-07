@@ -1,0 +1,18 @@
+/* Indicadores do hero — traço fino, não bolinha padrão do Swiper (identidade minimalista). */
+.hero-pagination .swiper-pagination-bullet {
+  width: 28px;
+  height: 2px;
+  border-radius: 0;
+  background-color: rgba(255, 255, 255, 0.4);
+  opacity: 1;
+  transition: background-color 0.3s ease;
+  margin: 0 !important;
+}
+
+.hero-pagination .swiper-pagination-bullet-active {
+  background-color: #ffffff;
+}
+
+.hero-swiper .swiper-slide {
+  height: auto;
+}

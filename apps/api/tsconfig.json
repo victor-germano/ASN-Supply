@@ -2,6 +2,7 @@
   "extends": "@asn/config/typescript/nestjs",
   "compilerOptions": {
     "baseUrl": "./",
+    "outDir": "./dist",
     "paths": {
       "@/*": ["src/*"]
     }

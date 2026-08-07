@@ -8,6 +8,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: '*.amazonaws.com' },
     ],
+    // Habilitado só para os SVGs estáticos de arte abstrata em
+    // public/seed-art (gerados por nós, confiáveis) — usados como capa de
+    // demonstração no catálogo seed até termos fotografia de produto real.
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   experimental: {
     optimizePackageImports: ['@asn/ui', 'framer-motion'],

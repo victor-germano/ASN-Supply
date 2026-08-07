@@ -1,23 +1,57 @@
-import { Button, Container, Heading, Text } from '@asn/ui';
+import {
+  getActiveBanners,
+  getBrands,
+  getFeaturedProducts,
+  getLaunchedCollections,
+  getTopLevelCategories,
+} from '@/services/catalog.service';
+import { getSocialPosts } from '@/services/marketing.service';
+import { Hero } from '@/features/home/components/Hero/Hero';
+import { ProductGrid } from '@/features/home/components/ProductGrid/ProductGrid';
+import { Collections } from '@/features/home/components/Collections/Collections';
+import { Categories } from '@/features/home/components/Categories/Categories';
+import { Brands } from '@/features/home/components/Brands/Brands';
+import { Benefits } from '@/features/home/components/Benefits/Benefits';
+import { SocialShowcase } from '@/features/home/components/SocialShowcase/SocialShowcase';
+import { Newsletter } from '@/features/home/components/Newsletter/Newsletter';
+import { AboutBrand } from '@/features/home/components/AboutBrand/AboutBrand';
 
-export default function HomePage() {
+const ABOUT_IMAGE_URL = '/seed-art/art-05.svg';
+
+export default async function HomePage() {
+  const [banners, newArrivals, bestSellers, collections, categories, brands, socialPosts] =
+    await Promise.all([
+      getActiveBanners(),
+      getFeaturedProducts('new-arrivals', 8),
+      getFeaturedProducts('best-sellers', 8),
+      getLaunchedCollections(3),
+      getTopLevelCategories(),
+      getBrands(12),
+      getSocialPosts(6),
+    ]);
+
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center bg-bone-100">
-      <Container className="flex flex-col items-center gap-6 text-center">
-        <span className="font-sans text-xs uppercase tracking-widest text-olive-600">
-          Curadoria premium de sneakers
-        </span>
-        <Heading as="h1" size="display" className="max-w-3xl">
-          Estilo que não segue tendência. Define uma.
-        </Heading>
-        <Text size="lg" tone="muted" className="max-w-xl">
-          ASN Supply reúne edições exclusivas e lançamentos das marcas que constroem cultura —
-          curadoria, não catálogo.
-        </Text>
-        <Button size="lg" className="mt-4">
-          Explorar coleção
-        </Button>
-      </Container>
+    <main>
+      <Hero banners={banners} />
+      <ProductGrid
+        id="lancamentos"
+        title="Lançamentos"
+        subtitle="As peças mais recentes da curadoria, direto da vitrine."
+        products={newArrivals}
+      />
+      <ProductGrid
+        id="mais-vendidos"
+        title="Mais Vendidos"
+        subtitle="O que a comunidade ASN Supply mais está usando."
+        products={bestSellers}
+      />
+      <Collections collections={collections} />
+      <Categories categories={categories} />
+      <Brands brands={brands} />
+      <Benefits />
+      <SocialShowcase posts={socialPosts} />
+      <Newsletter />
+      <AboutBrand imageUrl={ABOUT_IMAGE_URL} />
     </main>
   );
 }
