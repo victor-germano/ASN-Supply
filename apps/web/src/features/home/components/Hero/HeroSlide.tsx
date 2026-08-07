@@ -34,10 +34,8 @@ export function HeroSlide({ banner, priority }: { banner: Banner; priority: bool
           <Heading as="h2" size="display" className="text-white">
             {banner.title}
           </Heading>
-          {/* prefetch desligado: os CTAs apontam para /colecoes/[slug] (Módulo 2), ainda não implementado. */}
           <Link
             href={banner.ctaHref}
-            prefetch={false}
             className={`${buttonStyles({ variant: 'primary', size: 'lg' })} mt-8`}
           >
             {banner.ctaLabel}

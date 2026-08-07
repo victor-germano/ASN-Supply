@@ -137,6 +137,11 @@ model Product {
   isPublished    Boolean       @default(false)
   publishedAt    DateTime?
   sizeGuideId    String?
+  /// Denormalizado a partir de `reviews` (recalculado a cada review criada/removida) —
+  /// evita agregação em toda listagem e permite ordenar "Melhor avaliados" no banco,
+  /// com paginação real, em vez de ordenar em memória após buscar tudo.
+  averageRating  Float?
+  reviewCount    Int           @default(0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 

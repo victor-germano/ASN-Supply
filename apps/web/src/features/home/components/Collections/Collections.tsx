@@ -22,8 +22,7 @@ export function Collections({ collections }: { collections: Collection[] }) {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {collections.map((collection, index) => (
             <RevealOnScroll key={collection.id} delay={index * 0.08}>
-              {/* prefetch desligado: /colecoes/[slug] ainda não existe (Módulo 2). */}
-              <Link href={`/colecoes/${collection.slug}`} prefetch={false} className="group block">
+              <Link href={`/colecoes/${collection.slug}`} className="group block">
                 <div className="relative aspect-[4/5] overflow-hidden bg-bone-200">
                   {collection.coverImage && (
                     <Image

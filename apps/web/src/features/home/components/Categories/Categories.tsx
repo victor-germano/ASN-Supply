@@ -19,12 +19,7 @@ export function Categories({ categories }: { categories: Category[] }) {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {categories.map((category, index) => (
             <RevealOnScroll key={category.id} delay={index * 0.06}>
-              {/* prefetch desligado: /produtos (Módulo 2) ainda não existe. */}
-              <Link
-                href={`/produtos?categoria=${category.slug}`}
-                prefetch={false}
-                className="group block"
-              >
+              <Link href={`/produtos?categoria=${category.slug}`} className="group block">
                 <div className="relative aspect-square overflow-hidden rounded-lg bg-bone-200">
                   {category.image && (
                     <Image

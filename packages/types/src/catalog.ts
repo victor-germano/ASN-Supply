@@ -78,8 +78,10 @@ export type ProductSortOption =
   'RELEVANCE' | 'NEWEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'BEST_SELLING' | 'TOP_RATED';
 
 export interface ProductFilters {
-  brandIds?: string[];
-  categoryIds?: string[];
+  /** Slugs, não IDs de banco — URL amigável e estável entre reseeds do catálogo. */
+  brandSlugs?: string[];
+  categorySlugs?: string[];
+  collectionSlugs?: string[];
   colorNames?: string[];
   sizes?: string[];
   minPriceInCents?: number;
@@ -87,4 +89,36 @@ export interface ProductFilters {
   genders?: ProductGender[];
   query?: string;
   sort?: ProductSortOption;
+}
+
+export interface ProductFacetOption {
+  slug: string;
+  label: string;
+  count: number;
+}
+
+export interface ProductColorFacetOption {
+  name: string;
+  hex: string;
+  count: number;
+}
+
+export interface ProductGenderFacetOption {
+  value: ProductGender;
+  count: number;
+}
+
+/**
+ * Opções disponíveis para montar a UI de filtros da listagem (Módulo 2).
+ * Calculadas sobre todo o catálogo publicado — não são re-narrowed
+ * dinamicamente pela seleção atual de filtros (faceted search completo é
+ * uma evolução possível, não implementada nesta fase).
+ */
+export interface ProductFacets {
+  brands: ProductFacetOption[];
+  categories: ProductFacetOption[];
+  colors: ProductColorFacetOption[];
+  sizes: { size: string; count: number }[];
+  genders: ProductGenderFacetOption[];
+  priceRange: { minInCents: number; maxInCents: number };
 }
