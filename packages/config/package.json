@@ -1,0 +1,27 @@
+{
+  "name": "@asn/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript, ESLint and Tailwind (design tokens) presets for ASN Supply.",
+  "exports": {
+    "./tailwind/preset": "./tailwind/preset.js",
+    "./tailwind/tokens": "./tailwind/tokens.js",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/nestjs": "./typescript/nestjs.json",
+    "./eslint/base.mjs": "./eslint/base.mjs",
+    "./eslint/react.mjs": "./eslint/react.mjs",
+    "./eslint/nestjs.mjs": "./eslint/nestjs.mjs"
+  },
+  "files": [
+    "tailwind",
+    "typescript",
+    "eslint"
+  ],
+  "dependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript-eslint": "^8.18.2"
+  }
+}

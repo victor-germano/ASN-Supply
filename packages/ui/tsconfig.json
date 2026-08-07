@@ -1,0 +1,12 @@
+{
+  "extends": "@asn/config/typescript/base",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["@testing-library/jest-dom"]
+  },
+  "include": ["src"]
+}

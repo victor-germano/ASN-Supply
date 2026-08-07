@@ -1,0 +1,45 @@
+import 'reflect-metadata';
+import helmet from 'helmet';
+import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import type { EnvConfig } from './config/env.validation';
+
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const config = app.get(ConfigService<EnvConfig, true>);
+
+  app.use(helmet());
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  app.enableCors({
+    origin: config.get('CORS_ALLOWED_ORIGINS', { infer: true }).split(','),
+    credentials: true,
+  });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
+
+  const port = config.get('PORT', { infer: true });
+  await app.listen(port);
+
+  Logger.log(`ASN Supply API rodando em http://localhost:${port}`, 'Bootstrap');
+}
+
+bootstrap().catch((error: unknown) => {
+  Logger.error(
+    'Falha ao inicializar a aplicação',
+    error instanceof Error ? error.stack : String(error),
+  );
+  process.exit(1);
+});
