@@ -28,10 +28,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
   const discountPercent = calculateDiscountPercent(product.price, product.compareAtPrice);
 
   return (
-    // prefetch desligado: a rota /produtos/[slug] (Módulo 3) ainda não
-    // existe — sem isso, o Next tenta prefetch no viewport e gera 404 real
-    // no console a cada carregamento da Home, mesmo sem clique nenhum.
-    <Link href={`/produtos/${product.slug}`} prefetch={false} className="group block">
+    <Link href={`/produtos/${product.slug}`} className="group block">
       <div className="relative aspect-[4/5] overflow-hidden bg-bone-200">
         <Image
           src={product.primaryImage.url}

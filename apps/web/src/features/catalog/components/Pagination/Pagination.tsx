@@ -5,14 +5,18 @@ export interface PaginationProps {
   page: number;
   totalPages: number;
   currentSearch: string;
+  /** Nome do parâmetro de página na URL — `page` por padrão, mas seções que convivem na mesma página (ex: avaliações dentro da PDP) precisam de um nome próprio para não colidir. */
+  paramKey?: string;
+  /** Rótulo do `<nav>` para leitor de tela — importante quando há mais de uma paginação na mesma página. */
+  ariaLabel?: string;
 }
 
-function hrefForPage(currentSearch: string, page: number): string {
+function hrefForPage(currentSearch: string, page: number, paramKey: string): string {
   const params = new URLSearchParams(currentSearch);
   if (page <= 1) {
-    params.delete('page');
+    params.delete(paramKey);
   } else {
-    params.set('page', String(page));
+    params.set(paramKey, String(page));
   }
   const query = params.toString();
   return query ? `?${query}` : '?';
@@ -34,15 +38,21 @@ function buildPageWindow(page: number, totalPages: number): (number | 'ellipsis'
   return result;
 }
 
-export function Pagination({ page, totalPages, currentSearch }: PaginationProps) {
+export function Pagination({
+  page,
+  totalPages,
+  currentSearch,
+  paramKey = 'page',
+  ariaLabel = 'Paginação de produtos',
+}: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const pageItems = buildPageWindow(page, totalPages);
 
   return (
-    <nav aria-label="Paginação de produtos" className="flex items-center justify-center gap-1 pt-4">
+    <nav aria-label={ariaLabel} className="flex items-center justify-center gap-1 pt-4">
       <Link
-        href={hrefForPage(currentSearch, page - 1)}
+        href={hrefForPage(currentSearch, page - 1, paramKey)}
         aria-disabled={page <= 1}
         tabIndex={page <= 1 ? -1 : undefined}
         className={`flex h-10 w-10 items-center justify-center ${
@@ -65,7 +75,7 @@ export function Pagination({ page, totalPages, currentSearch }: PaginationProps)
         ) : (
           <Link
             key={item}
-            href={hrefForPage(currentSearch, item)}
+            href={hrefForPage(currentSearch, item, paramKey)}
             aria-current={item === page ? 'page' : undefined}
             className={`flex h-10 w-10 items-center justify-center text-sm ${
               item === page ? 'bg-ink text-white' : 'text-ink hover:bg-bone-200'
@@ -77,7 +87,7 @@ export function Pagination({ page, totalPages, currentSearch }: PaginationProps)
       )}
 
       <Link
-        href={hrefForPage(currentSearch, page + 1)}
+        href={hrefForPage(currentSearch, page + 1, paramKey)}
         aria-disabled={page >= totalPages}
         tabIndex={page >= totalPages ? -1 : undefined}
         className={`flex h-10 w-10 items-center justify-center ${

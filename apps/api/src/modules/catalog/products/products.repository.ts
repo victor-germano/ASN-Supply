@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../../../../generated/client';
-import type { PaginatedResult, ProductFacets, ProductFilters, ProductSummary } from '@asn/types';
+import type {
+  PaginatedResult,
+  ProductDetail,
+  ProductFacets,
+  ProductFilters,
+  ProductSummary,
+} from '@asn/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toMoney } from '../common/money.mapper';
 import type { ProductFeatureFilter } from './dto/list-products.query.dto';
@@ -12,7 +18,16 @@ const summaryInclude = {
   variants: { select: { colorName: true } },
 } satisfies Prisma.ProductInclude;
 
+const detailInclude = {
+  brand: true,
+  category: true,
+  collection: true,
+  images: { orderBy: { position: Prisma.SortOrder.asc } },
+  variants: { orderBy: [{ colorName: Prisma.SortOrder.asc }, { size: Prisma.SortOrder.asc }] },
+} satisfies Prisma.ProductInclude;
+
 type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof summaryInclude }>;
+type ProductWithDetailRelations = Prisma.ProductGetPayload<{ include: typeof detailInclude }>;
 
 @Injectable()
 export class ProductsRepository {
@@ -26,7 +41,7 @@ export class ProductsRepository {
   ): Promise<ProductSummary[]> {
     const where: Prisma.ProductWhereInput = {
       isPublished: true,
-      images: { some: {} },
+      images: { some: { is360Frame: false } },
       ...(feature === 'new-arrivals' && { isNewArrival: true }),
       ...(feature === 'best-sellers' && { isBestSeller: true }),
     };
@@ -154,13 +169,91 @@ export class ProductsRepository {
     };
   }
 
+  /**
+   * Detalhe completo para a PDP (Módulo 3) — `null` se não existir, não
+   * estiver publicado, ou (mesma falha de conteúdo tratada em `withImages`)
+   * não tiver nenhuma imagem de galeria além dos frames do giro 360°: sem
+   * isso, `toProductDetail` quebraria ao tentar montar a imagem principal.
+   */
+  async findBySlug(slug: string): Promise<ProductDetail | null> {
+    const product = await this.prisma.product.findUnique({
+      where: { slug },
+      include: detailInclude,
+    });
+
+    if (!product || !product.isPublished) return null;
+    if (product.images.every((image) => image.is360Frame)) {
+      this.logger.warn(
+        `Produto ${product.id} (${product.slug}) publicado sem imagens de galeria — tratado como não encontrado.`,
+      );
+      return null;
+    }
+    return toProductDetail(product);
+  }
+
+  /**
+   * Lookup mínimo (id + categoria) para resolver um slug sem pagar o custo
+   * do `detailInclude` completo (brand/category/collection/imagens/variantes)
+   * — usado por rotas como "relacionados" que só precisam desses dois campos
+   * para montar a query seguinte, não do produto inteiro.
+   */
+  async findIdAndCategoryBySlug(slug: string): Promise<{ id: string; categoryId: string } | null> {
+    const product = await this.prisma.product.findUnique({
+      where: { slug },
+      select: { id: true, categoryId: true, isPublished: true },
+    });
+
+    if (!product || !product.isPublished) return null;
+    return { id: product.id, categoryId: product.categoryId };
+  }
+
+  /** Mesma categoria, excluindo o próprio produto — usado em "Produtos relacionados". */
+  async findRelated(
+    productId: string,
+    categoryId: string,
+    limit: number,
+  ): Promise<ProductSummary[]> {
+    const products = await this.prisma.product.findMany({
+      where: {
+        isPublished: true,
+        images: { some: { is360Frame: false } },
+        categoryId,
+        id: { not: productId },
+      },
+      include: summaryInclude,
+      orderBy: { publishedAt: 'desc' },
+      take: limit,
+    });
+
+    return products.map(toProductSummary);
+  }
+
+  /** Busca em lote por ID, preservando a ordem recebida — usado em "Vistos recentemente" (histórico local do navegador). */
+  async findByIds(ids: string[]): Promise<ProductSummary[]> {
+    if (ids.length === 0) return [];
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids }, isPublished: true, images: { some: { is360Frame: false } } },
+      include: summaryInclude,
+    });
+
+    const byId = new Map(products.map((product) => [product.id, product]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((product): product is ProductWithRelations => product !== undefined)
+      .map(toProductSummary);
+  }
+
   private buildWhere(filters: ProductFilters): Prisma.ProductWhereInput {
-    // `images: { some: {} }` garante que a contagem usada para paginar
+    // `images: { some: { is360Frame: false } }` garante que a contagem usada para paginar
     // (totalItems/totalPages) e os itens de fato retornados nunca
     // divirjam: sem isto, um produto publicado sem imagem entraria no
     // COUNT mas seria descartado depois por `withImages`, podendo deixar
     // uma página "válida" com menos itens do que a paginação promete.
-    const where: Prisma.ProductWhereInput = { isPublished: true, images: { some: {} } };
+    const where: Prisma.ProductWhereInput = {
+      isPublished: true,
+      images: { some: { is360Frame: false } },
+    };
 
     if (filters.brandSlugs?.length) where.brand = { slug: { in: filters.brandSlugs } };
     if (filters.categorySlugs?.length) where.category = { slug: { in: filters.categorySlugs } };
@@ -221,12 +314,12 @@ export class ProductsRepository {
     }
   }
 
-  /** Produto publicado sem imagem é falha de conteúdo — omitido (com log) em vez de quebrar a listagem inteira. */
+  /** Produto publicado sem imagem de galeria é falha de conteúdo — omitido (com log) em vez de quebrar a listagem inteira. */
   private withImages(products: ProductWithRelations[]): ProductWithRelations[] {
     return products.filter((product) => {
-      if (product.images.length === 0) {
+      if (product.images.every((image) => image.is360Frame)) {
         this.logger.warn(
-          `Produto ${product.id} (${product.slug}) publicado sem imagens — omitido da vitrine.`,
+          `Produto ${product.id} (${product.slug}) publicado sem imagens de galeria — omitido da vitrine.`,
         );
         return false;
       }
@@ -236,8 +329,13 @@ export class ProductsRepository {
 }
 
 function toProductSummary(product: ProductWithRelations): ProductSummary {
-  const primaryImage = product.images.find((image) => !image.isHoverImage) ?? product.images[0]!;
-  const hoverImage = product.images.find((image) => image.isHoverImage) ?? null;
+  // Frames do giro 360° vivem na mesma tabela (mesma natureza de dado —
+  // ver comentário no schema) mas nunca podem ser escolhidos como capa:
+  // são fotos do produto rodando em torno do próprio eixo, não uma vista
+  // de produto utilizável isoladamente.
+  const galleryImages = product.images.filter((image) => !image.is360Frame);
+  const primaryImage = galleryImages.find((image) => !image.isHoverImage) ?? galleryImages[0]!;
+  const hoverImage = galleryImages.find((image) => image.isHoverImage) ?? null;
   const uniqueColors = new Set(product.variants.map((variant) => variant.colorName));
 
   return {
@@ -249,25 +347,78 @@ function toProductSummary(product: ProductWithRelations): ProductSummary {
     price: toMoney(product.priceInCents),
     compareAtPrice:
       product.compareAtPriceInCents !== null ? toMoney(product.compareAtPriceInCents) : null,
-    primaryImage: {
-      id: primaryImage.id,
-      url: primaryImage.url,
-      alt: primaryImage.alt,
-      width: primaryImage.width,
-      height: primaryImage.height,
-      position: primaryImage.position,
-    },
-    hoverImage: hoverImage && {
-      id: hoverImage.id,
-      url: hoverImage.url,
-      alt: hoverImage.alt,
-      width: hoverImage.width,
-      height: hoverImage.height,
-      position: hoverImage.position,
-    },
+    primaryImage: toImageAsset(primaryImage),
+    hoverImage: hoverImage && toImageAsset(hoverImage),
     availableColors: uniqueColors.size,
     isNewArrival: product.isNewArrival,
     averageRating: product.averageRating,
     reviewCount: product.reviewCount,
+  };
+}
+
+function toImageAsset(image: {
+  id: string;
+  url: string;
+  alt: string;
+  width: number;
+  height: number;
+  position: number;
+}) {
+  return {
+    id: image.id,
+    url: image.url,
+    alt: image.alt,
+    width: image.width,
+    height: image.height,
+    position: image.position,
+  };
+}
+
+function toProductDetail(product: ProductWithDetailRelations): ProductDetail {
+  const galleryImages = product.images.filter((image) => !image.is360Frame);
+  const frames360 = product.images.filter((image) => image.is360Frame);
+  const primaryImage = galleryImages.find((image) => !image.isHoverImage) ?? galleryImages[0]!;
+  const hoverImage = galleryImages.find((image) => image.isHoverImage) ?? null;
+  const uniqueColors = new Set(product.variants.map((variant) => variant.colorName));
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    brand: { id: product.brand.id, name: product.brand.name, slug: product.brand.slug },
+    category: { id: product.category.id, name: product.category.name, slug: product.category.slug },
+    price: toMoney(product.priceInCents),
+    compareAtPrice:
+      product.compareAtPriceInCents !== null ? toMoney(product.compareAtPriceInCents) : null,
+    primaryImage: toImageAsset(primaryImage),
+    hoverImage: hoverImage && toImageAsset(hoverImage),
+    availableColors: uniqueColors.size,
+    isNewArrival: product.isNewArrival,
+    averageRating: product.averageRating,
+    reviewCount: product.reviewCount,
+    description: product.description,
+    materials: product.materials,
+    technologies: product.technologies,
+    gender: product.gender,
+    images: galleryImages.map(toImageAsset),
+    videoUrl: product.videoUrl,
+    has360View: product.has360View,
+    frames360: frames360.map(toImageAsset),
+    variants: product.variants.map((variant) => ({
+      id: variant.id,
+      sku: variant.sku,
+      size: variant.size,
+      colorName: variant.colorName,
+      colorHex: variant.colorHex,
+      stockQuantity: variant.stockQuantity,
+      priceOverride:
+        variant.priceOverrideInCents !== null ? toMoney(variant.priceOverrideInCents) : null,
+    })),
+    sizeGuideId: product.sizeGuideId,
+    collection: product.collection && {
+      id: product.collection.id,
+      name: product.collection.name,
+      slug: product.collection.slug,
+    },
   };
 }

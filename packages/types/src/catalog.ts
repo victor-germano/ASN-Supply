@@ -69,6 +69,8 @@ export interface ProductDetail extends ProductSummary {
   images: ImageAsset[];
   videoUrl: string | null;
   has360View: boolean;
+  /** Sequência de quadros do giro 360° — vazio quando `has360View` é falso. */
+  frames360: ImageAsset[];
   variants: ProductVariant[];
   sizeGuideId: string | null;
   collection: Pick<Collection, 'id' | 'name' | 'slug'> | null;

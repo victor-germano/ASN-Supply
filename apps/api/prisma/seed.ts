@@ -33,6 +33,7 @@ async function resetCatalogData(): Promise<void> {
   // Ordem respeita as foreign keys (dependentes primeiro).
   await prisma.wishlistItem.deleteMany();
   await prisma.review.deleteMany();
+  await prisma.productQuestion.deleteMany();
   await prisma.cartItem.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.productImage.deleteMany();
@@ -43,6 +44,12 @@ async function resetCatalogData(): Promise<void> {
   await prisma.brand.deleteMany();
   await prisma.banner.deleteMany();
   await prisma.socialPost.deleteMany();
+  // Só os "reviewers" de demonstração — reseedados a cada rodada junto com
+  // as reviews que os referenciam. Restrito ao domínio fictício usado em
+  // `seedReviewers` (@example.com): um `deleteMany()` sem filtro apagaria
+  // qualquer conta real criada fora deste script (Módulo 5 em diante) toda
+  // vez que o seed rodasse de novo.
+  await prisma.user.deleteMany({ where: { email: { endsWith: '@example.com' } } });
 }
 
 async function seedBrands() {
@@ -659,6 +666,9 @@ const PRODUCT_SEEDS: ProductSeed[] = [
 
 const SIZES = ['38', '39', '40', '41', '42', '43', '44'];
 
+/** Slug do produto que ganha uma sequência de giro 360° de demonstração (não temos fotografia rotacionada real ainda). */
+const PRODUCT_WITH_360_VIEW = 'marrow-atelier-edicao-especial';
+
 async function seedProducts(
   brands: Awaited<ReturnType<typeof seedBrands>>,
   categories: Awaited<ReturnType<typeof seedCategories>>,
@@ -667,6 +677,7 @@ async function seedProducts(
   const brandBySlug = new Map(brands.map((brand) => [brand.slug, brand]));
   const categoryBySlug = new Map(categories.map((category) => [category.slug, category]));
   const collectionBySlug = new Map(collections.map((collection) => [collection.slug, collection]));
+  const createdProducts: { id: string; slug: string }[] = [];
 
   for (const seed of PRODUCT_SEEDS) {
     const brand = brandBySlug.get(seed.brandSlug);
@@ -709,7 +720,19 @@ async function seedProducts(
         : []),
     ];
 
-    await prisma.product.create({
+    const has360View = seed.slug === PRODUCT_WITH_360_VIEW;
+    const framesData = has360View
+      ? Array.from({ length: 8 }, (_, frameIndex) => ({
+          url: art(frameIndex),
+          alt: `${seed.name} — giro 360°, quadro ${frameIndex + 1}`,
+          width: 1200,
+          height: 1500,
+          position: frameIndex,
+          is360Frame: true,
+        }))
+      : [];
+
+    const product = await prisma.product.create({
       data: {
         slug: seed.slug,
         name: seed.name,
@@ -721,14 +744,175 @@ async function seedProducts(
         compareAtPriceInCents: seed.compareAtPriceInCents,
         isNewArrival: seed.isNewArrival,
         isBestSeller: seed.isBestSeller,
+        has360View,
         isPublished: true,
         publishedAt: new Date(),
         brandId: brand.id,
         categoryId: category.id,
         collectionId: collection?.id,
-        images: { create: imagesData },
+        images: { create: [...imagesData, ...framesData] },
         variants: { create: variantsData },
       },
+    });
+    createdProducts.push({ id: product.id, slug: product.slug });
+  }
+
+  return createdProducts;
+}
+
+async function seedReviewers() {
+  const reviewers = [
+    { name: 'Marina Costa', email: 'marina.costa@example.com' },
+    { name: 'Rafael Andrade', email: 'rafael.andrade@example.com' },
+    { name: 'Juliana Prado', email: 'juliana.prado@example.com' },
+    { name: 'Lucas Ferreira', email: 'lucas.ferreira@example.com' },
+    { name: 'Beatriz Nunes', email: 'beatriz.nunes@example.com' },
+    { name: 'Thiago Mendes', email: 'thiago.mendes@example.com' },
+    { name: 'Camila Rocha', email: 'camila.rocha@example.com' },
+    { name: 'Diego Salles', email: 'diego.salles@example.com' },
+  ];
+
+  return Promise.all(
+    reviewers.map((reviewer) =>
+      prisma.user.create({ data: { name: reviewer.name, email: reviewer.email } }),
+    ),
+  );
+}
+
+interface ReviewSeed {
+  rating: 1 | 2 | 3 | 4 | 5;
+  title: string;
+  comment: string;
+  isVerifiedPurchase: boolean;
+  withPhoto?: boolean;
+}
+
+const REVIEW_POOL: ReviewSeed[] = [
+  {
+    rating: 5,
+    title: 'Melhor compra do ano',
+    comment:
+      'Construção impecável, o material é bem mais premium do que eu esperava pelo preço. Já é meu tênis do dia a dia.',
+    isVerifiedPurchase: true,
+    withPhoto: true,
+  },
+  {
+    rating: 4,
+    title: 'Muito bom, só o cadarço poderia ser melhor',
+    comment:
+      'Caimento perfeito e super confortável desde o primeiro uso. O único ponto é que o cadarço original é um pouco fino.',
+    isVerifiedPurchase: true,
+  },
+  {
+    rating: 5,
+    title: 'Superou a expectativa',
+    comment:
+      'Comprei com receio pelo preço, mas a qualidade do material e o acabamento das costuras são de outro nível.',
+    isVerifiedPurchase: true,
+  },
+  {
+    rating: 3,
+    title: 'Bom, mas numeração veio um pouco justa',
+    comment:
+      'O tênis em si é ótimo, mas pedi um número acima do que uso normalmente e ainda assim ficou justo. Vale conferir a tabela de medidas com atenção.',
+    isVerifiedPurchase: true,
+  },
+  {
+    rating: 5,
+    title: 'Virou meu favorito',
+    comment: 'Uso praticamente todo dia. Leve, confortável e o visual combina com tudo.',
+    isVerifiedPurchase: false,
+  },
+  {
+    rating: 4,
+    title: 'Ótimo custo-benefício',
+    comment: 'Pelo preço, entrega muito mais qualidade do que eu esperava. Recomendo.',
+    isVerifiedPurchase: true,
+    withPhoto: true,
+  },
+];
+
+const QUESTION_POOL: { question: string; answer: string | null }[] = [
+  {
+    question: 'Esse modelo veste grande ou pequeno? Costumo usar 42 em outras marcas.',
+    answer:
+      'Nossa numeração segue o padrão BR — quem usa 42 em outras marcas geralmente veste bem no 42 aqui também. Em caso de dúvida, a troca de numeração é gratuita em até 30 dias.',
+  },
+  {
+    question: 'O material é impermeável?',
+    answer:
+      'Não é impermeável, mas o couro nobuck tem resistência natural a respingos leves. Para chuva forte, recomendamos um impermeabilizante específico para o material.',
+  },
+  {
+    question: 'Vocês têm previsão de reposição do tamanho 39?',
+    answer: null,
+  },
+  {
+    question: 'Esse tênis serve para caminhada longa ou é só para uso casual?',
+    answer:
+      'É desenvolvido para uso casual do dia a dia. Para caminhadas longas ou corrida, recomendamos a linha Terra Runner.',
+  },
+];
+
+async function seedReviewsAndQuestions(
+  products: { id: string; slug: string }[],
+  reviewers: Awaited<ReturnType<typeof seedReviewers>>,
+) {
+  // Nem todo produto recebe review/pergunta — em um catálogo real, produtos
+  // recém-publicados também começam sem nenhuma avaliação.
+  const productsWithReviews = products.filter((_, index) => index % 2 === 0);
+  const productsWithQuestions = products.filter((_, index) => index % 3 === 0);
+
+  for (const [productIndex, product] of productsWithReviews.entries()) {
+    const reviewCount = 1 + (productIndex % 4);
+    const selectedReviews = Array.from(
+      { length: reviewCount },
+      (_, i) => REVIEW_POOL[(productIndex + i) % REVIEW_POOL.length]!,
+    );
+
+    await prisma.review.createMany({
+      data: selectedReviews.map((review, i) => ({
+        productId: product.id,
+        userId: reviewers[(productIndex + i) % reviewers.length]!.id,
+        rating: review.rating,
+        title: review.title,
+        comment: review.comment,
+        isVerifiedPurchase: review.isVerifiedPurchase,
+        imageUrls: review.withPhoto ? [art(productIndex + i)] : [],
+        videoUrls: [],
+      })),
+    });
+
+    const averageRating =
+      Math.round(
+        (selectedReviews.reduce((sum, review) => sum + review.rating, 0) / selectedReviews.length) *
+          10,
+      ) / 10;
+
+    // Denormalização feita aqui, na escrita — é exatamente o padrão que o
+    // módulo de Avaliações real (fora do escopo do seed) precisa seguir
+    // sempre que uma review for criada, editada ou removida.
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { averageRating, reviewCount: selectedReviews.length },
+    });
+  }
+
+  for (const [productIndex, product] of productsWithQuestions.entries()) {
+    const questionCount = 1 + (productIndex % 2);
+    const selectedQuestions = Array.from(
+      { length: questionCount },
+      (_, i) => QUESTION_POOL[(productIndex + i) % QUESTION_POOL.length]!,
+    );
+
+    await prisma.productQuestion.createMany({
+      data: selectedQuestions.map((question, i) => ({
+        productId: product.id,
+        askerName: ['Fernanda L.', 'Pedro H.', 'Ana Clara', 'Bruno S.'][i % 4]!,
+        question: question.question,
+        answer: question.answer,
+        answeredAt: question.answer ? new Date() : null,
+      })),
     });
   }
 }
@@ -748,7 +932,11 @@ async function main() {
   await Promise.all([seedBanners(), seedSocialPosts()]);
 
   console.warn('Semeando produtos, variantes e imagens...');
-  await seedProducts(brands, categories, collections);
+  const products = await seedProducts(brands, categories, collections);
+
+  console.warn('Semeando avaliadores, avaliações e perguntas...');
+  const reviewers = await seedReviewers();
+  await seedReviewsAndQuestions(products, reviewers);
 
   console.warn('Seed concluído.');
 }

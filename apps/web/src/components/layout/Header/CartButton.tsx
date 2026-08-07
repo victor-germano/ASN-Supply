@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useCartStore } from '@/stores/cartStore';
+import { useCartItemCount } from '@/stores/cartStore';
 import { BagIcon } from '@/components/icons';
 
 /** Ícone de carrinho com badge de quantidade — client component por depender da store global. */
 export function CartButton() {
-  const itemCount = useCartStore((state) => state.itemCount);
+  const itemCount = useCartItemCount();
 
   return (
     <Link

@@ -2,10 +2,8 @@
 
 import { useActionState } from 'react';
 import { Button, Container, Heading, Section, Text } from '@asn/ui';
-import {
-  initialNewsletterFormState,
-  subscribeNewsletterAction,
-} from '@/actions/subscribeNewsletter';
+import { subscribeNewsletterAction } from '@/actions/subscribeNewsletter';
+import { initialNewsletterFormState } from '@/actions/newsletterFormState';
 
 export function Newsletter() {
   const [state, formAction, isPending] = useActionState(

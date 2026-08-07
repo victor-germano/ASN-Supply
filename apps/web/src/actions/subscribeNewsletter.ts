@@ -3,18 +3,9 @@
 import { z } from 'zod';
 import { ApiError } from '@/services/apiClient';
 import { subscribeToNewsletter } from '@/services/marketing.service';
+import type { NewsletterFormState } from './newsletterFormState';
 
 const emailSchema = z.string().trim().email('Informe um e-mail válido.');
-
-export interface NewsletterFormState {
-  status: 'idle' | 'success' | 'error';
-  message: string | null;
-}
-
-export const initialNewsletterFormState: NewsletterFormState = {
-  status: 'idle',
-  message: null,
-};
 
 /**
  * Server Action do formulário de newsletter. Valida no servidor

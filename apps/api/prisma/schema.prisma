@@ -155,6 +155,7 @@ model Product {
   images         ProductImage[]
   variants       ProductVariant[]
   reviews        Review[]
+  questions      ProductQuestion[]
   wishlistItems  WishlistItem[]
   orderItems     OrderItem[]
   cartItems      CartItem[]
@@ -177,6 +178,10 @@ model ProductImage {
   height    Int
   position  Int     @default(0)
   isHoverImage Boolean @default(false)
+  /// Frame de giro 360° (Product.has360View) — reaproveita esta tabela em vez
+  /// de uma dedicada porque é a mesma natureza de dado (imagem + posição),
+  /// só ordenado como sequência de rotação em vez de galeria.
+  is360Frame   Boolean @default(false)
 
   @@index([productId])
   @@map("product_images")
@@ -218,6 +223,23 @@ model Review {
 
   @@index([productId])
   @@map("reviews")
+}
+
+/// Sem FK para User de propósito: o Q&A de produto tradicionalmente exibe só
+/// um nome de exibição, não uma conta completa — e o Módulo 5 (autenticação)
+/// ainda não existe. Perguntar de fato (não só listar) fica bloqueado até lá.
+model ProductQuestion {
+  id         String    @id @default(cuid())
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  askerName  String
+  question   String
+  answer     String?
+  answeredAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([productId])
+  @@map("product_questions")
 }
 
 model WishlistItem {

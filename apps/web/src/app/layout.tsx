@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Inter } from 'next/font/google';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { StoreHydration } from '@/providers/StoreHydration';
 import { Header } from '@/components/layout/Header/Header';
 import { Footer } from '@/components/layout/Footer/Footer';
 import './globals.css';
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={`${displayFont.variable} ${sansFont.variable}`}>
       <body>
         <QueryProvider>
+          <StoreHydration />
           <Header />
           {children}
           <Footer />
