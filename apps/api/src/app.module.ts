@@ -7,6 +7,8 @@ import { PrismaModule } from './modules/prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { MarketingModule } from './modules/marketing/marketing.module';
     HealthModule,
     CatalogModule,
     MarketingModule,
+    PaymentsModule,
+    OrdersModule,
   ],
   providers: [
     {

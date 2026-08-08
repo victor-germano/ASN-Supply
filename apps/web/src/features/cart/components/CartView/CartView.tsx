@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button, Container, Heading, Text, buttonStyles } from '@asn/ui';
+import { Container, Heading, Text, buttonStyles } from '@asn/ui';
 import { useCartStore } from '@/stores/cartStore';
 import { formatMoney } from '@/lib/formatMoney';
 import { CloseIcon } from '@/components/icons';
@@ -132,14 +132,14 @@ export function CartView() {
               </Text>
             </div>
             <Text size="xs" tone="muted" className="mt-2">
-              Frete e cupom calculados no checkout.
+              Frete calculado no checkout.
             </Text>
-            <Button size="lg" fullWidth className="mt-6" disabled>
+            <Link
+              href="/checkout"
+              className={buttonStyles({ size: 'lg', fullWidth: true, className: 'mt-6' })}
+            >
               Finalizar Compra
-            </Button>
-            <Text size="xs" tone="muted" className="mt-2 text-center">
-              Checkout chega no próximo módulo.
-            </Text>
+            </Link>
           </aside>
         </div>
       </Container>

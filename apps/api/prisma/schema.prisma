@@ -380,13 +380,38 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum ShippingMethod {
+  STANDARD
+  EXPRESS
+}
+
+/// Checkout como convidado (Módulo 4): a Área do Cliente (login) é um módulo
+/// posterior, então `userId` é opcional e o contato/endereço de entrega vêm
+/// denormalizados diretamente no pedido — sem exigir conta nem referenciar um
+/// `Address` salvo. `addressId` fica pronto (não usado ainda) para quando um
+/// cliente autenticado puder escolher um endereço salvo no Módulo 5; mesmo
+/// nesse caso os campos `shipping*` continuam sendo a cópia autoritativa
+/// entregue de fato — um endereço salvo pode ser editado/apagado depois da
+/// compra, o pedido não pode mudar retroativamente por causa disso.
 model Order {
   id                 String        @id @default(cuid())
   code               String        @unique
-  userId             String
-  user               User          @relation(fields: [userId], references: [id])
-  addressId          String
-  address            Address       @relation(fields: [addressId], references: [id])
+  userId             String?
+  user               User?         @relation(fields: [userId], references: [id])
+  guestName          String
+  guestEmail         String
+  guestPhone         String
+  addressId          String?
+  address            Address?      @relation(fields: [addressId], references: [id])
+  shippingRecipientName String
+  shippingStreet        String
+  shippingNumber        String
+  shippingComplement    String?
+  shippingNeighborhood  String
+  shippingCity          String
+  shippingState         String
+  shippingZipCode       String
+  shippingMethod     ShippingMethod @default(STANDARD)
   status             OrderStatus   @default(PENDING_PAYMENT)
   subtotalInCents    Int
   shippingCostInCents Int
@@ -402,9 +427,14 @@ model Order {
   payment            Payment?
 
   @@index([userId])
+  @@index([guestEmail])
   @@map("orders")
 }
 
+/// Snapshot de nome/imagem/tamanho/cor no momento da compra — deliberadamente
+/// redundante com `Product`/`ProductVariant`: um pedido de meses atrás precisa
+/// mostrar o que foi de fato comprado, mesmo que o produto seja renomeado,
+/// tenha as fotos trocadas ou (por Restrict na FK) nunca possa ser apagado.
 model OrderItem {
   id                String         @id @default(cuid())
   orderId           String
@@ -413,6 +443,11 @@ model OrderItem {
   product           Product        @relation(fields: [productId], references: [id])
   variantId         String
   variant           ProductVariant @relation(fields: [variantId], references: [id])
+  productName       String
+  productSlug       String
+  imageUrl          String
+  size              String
+  colorName         String
   quantity          Int
   unitPriceInCents  Int
 

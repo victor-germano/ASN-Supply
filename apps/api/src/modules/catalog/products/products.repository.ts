@@ -8,7 +8,7 @@ import type {
   ProductSummary,
 } from '@asn/types';
 import { PrismaService } from '../../prisma/prisma.service';
-import { toMoney } from '../common/money.mapper';
+import { toMoney } from '../../../common/money.mapper';
 import type { ProductFeatureFilter } from './dto/list-products.query.dto';
 
 const summaryInclude = {

@@ -35,6 +35,13 @@ async function resetCatalogData(): Promise<void> {
   await prisma.review.deleteMany();
   await prisma.productQuestion.deleteMany();
   await prisma.cartItem.deleteMany();
+  // Apaga Order antes de OrderItem: a relação Order -> OrderItem (e Order ->
+  // Payment) já é `onDelete: Cascade`, então isto também limpa OrderItem e
+  // Payment. Sem isto, pedidos de teste do checkout (Módulo 4, guest —
+  // `userId`/`addressId` nulos, nada prende o Order ao resto do catálogo)
+  // ficavam órfãos no banco a cada rodada do seed em vez de serem
+  // reseedados junto com o resto.
+  await prisma.order.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.productImage.deleteMany();
   await prisma.productVariant.deleteMany();

@@ -1,5 +1,4 @@
 import type { Money } from './common';
-import type { CartItem } from './cart';
 
 export type OrderStatus =
   | 'PENDING_PAYMENT'
@@ -15,9 +14,16 @@ export type PaymentMethod = 'CREDIT_CARD' | 'PIX' | 'MERCADO_PAGO';
 
 export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'PAID' | 'FAILED' | 'REFUNDED';
 
-export interface Address {
-  id: string;
-  label: string;
+export type ShippingMethod = 'STANDARD' | 'EXPRESS';
+
+/**
+ * Endereço de entrega — sempre uma cópia (não uma referência): tanto no
+ * checkout como convidado (Módulo 4, sem conta) quanto, futuramente, quando
+ * um cliente autenticado escolher um endereço salvo, o pedido guarda os
+ * dados como estavam no momento da compra. Editar/apagar o endereço salvo
+ * depois não pode alterar um pedido já feito.
+ */
+export interface ShippingAddress {
   recipientName: string;
   street: string;
   number: string;
@@ -26,22 +32,73 @@ export interface Address {
   city: string;
   state: string;
   zipCode: string;
-  isDefault: boolean;
+}
+
+export interface OrderItem {
+  id: string;
+  productId: string;
+  productSlug: string;
+  productName: string;
+  variantId: string;
+  imageUrl: string;
+  size: string;
+  colorName: string;
+  quantity: number;
+  unitPrice: Money;
 }
 
 export interface Order {
   id: string;
   code: string;
   status: OrderStatus;
-  items: CartItem[];
+  items: OrderItem[];
   subtotal: Money;
   shippingCost: Money;
-  discount: Money | null;
+  discount: Money;
   total: Money;
-  paymentMethod: PaymentMethod;
-  paymentStatus: PaymentStatus;
-  shippingAddress: Address;
+  shippingMethod: ShippingMethod;
+  shippingAddress: ShippingAddress;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
   installments: number;
   createdAt: string;
   estimatedDeliveryAt: string | null;
+}
+
+/**
+ * Entrada do checkout (guest, Módulo 4): o client manda só a intenção de
+ * compra (quais variantes + quantidade, contato, endereço). Preço e estoque
+ * NUNCA vêm do client — o servidor sempre re-busca `ProductVariant` no banco
+ * para montar o pedido, senão um client adulterado poderia mandar qualquer
+ * preço.
+ */
+export interface CreateOrderItemInput {
+  variantId: string;
+  quantity: number;
+}
+
+export interface CreateOrderInput {
+  items: CreateOrderItemInput[];
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  shippingAddress: ShippingAddress;
+  shippingMethod: ShippingMethod;
+}
+
+/**
+ * Resultado do "início de pagamento" — hoje sempre `available: false`
+ * (`NullPaymentGateway`, Módulo 4: sem credenciais de Stripe/Mercado
+ * Pago/PIX ainda). A forma do contrato já é a de uma resposta de gateway
+ * real para não exigir mudança de shape no frontend quando um adapter de
+ * verdade for plugado — só `available` vira `true` e os campos passam a vir
+ * preenchidos.
+ */
+export interface PaymentIntentResult {
+  available: boolean;
+  method: PaymentMethod | null;
+  providerReference: string | null;
+  clientSecret: string | null;
+  message: string;
 }
