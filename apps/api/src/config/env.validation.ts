@@ -26,6 +26,10 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
+  // Fundação do painel administrativo (Módulo 6, ainda não implementado) —
+  // ver AdminAuthGuard. Opcional porque nenhuma rota admin existe ainda;
+  // vira obrigatório em espírito no dia em que a primeira existir.
+  ADMIN_API_KEY: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
