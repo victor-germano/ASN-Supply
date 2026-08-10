@@ -42,5 +42,9 @@ import { QuestionsRepository } from './questions/questions.repository';
     ReviewsRepository,
     QuestionsRepository,
   ],
+  // ProductsRepository é reaproveitado fora do catálogo (ex: TryOnModule
+  // busca o produto real por id antes de gerar a análise) — evita cada
+  // módulo consumidor duplicar a mesma query/mapper.
+  exports: [ProductsRepository],
 })
 export class CatalogModule {}

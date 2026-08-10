@@ -10,6 +10,7 @@ import { MarketingModule } from './modules/marketing/marketing.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { TryOnModule } from './modules/tryon/tryon.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AdminModule } from './modules/admin/admin.module';
     PaymentsModule,
     OrdersModule,
     AdminModule,
+    TryOnModule,
   ],
   providers: [
     {

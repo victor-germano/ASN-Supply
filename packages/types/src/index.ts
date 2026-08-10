@@ -5,3 +5,4 @@ export * from './order';
 export * from './user';
 export * from './marketing';
 export * from './reviews';
+export * from './tryon';

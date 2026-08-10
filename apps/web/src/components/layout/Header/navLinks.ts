@@ -11,6 +11,7 @@ export interface NavLink {
  */
 export const NAV_LINKS: NavLink[] = [
   { label: 'Todos os Produtos', href: '/produtos' },
+  { label: 'Provador', href: '/provador' },
   { label: 'Lançamentos', href: '/#lancamentos' },
   { label: 'Mais Vendidos', href: '/#mais-vendidos' },
   { label: 'Sobre', href: '/#sobre' },

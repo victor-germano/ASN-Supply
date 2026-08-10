@@ -17,6 +17,11 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['@asn/ui', 'framer-motion'],
+    // Padrão do Next (1mb) é pequeno demais para a foto do Provador
+    // Digital (Módulo 7), enviada como data URL pela Server Action
+    // `analyzeTryOnAction` — a foto já é redimensionada no client antes do
+    // envio (ver PhotoUploader), então 4mb é folga, não o esperado.
+    serverActions: { bodySizeLimit: '4mb' },
   },
   async headers() {
     return [

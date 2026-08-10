@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
@@ -8,8 +9,15 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import type { EnvConfig } from './config/env.validation';
 
+// Body parser padrão do Express aceita só 100kb — pequeno demais para o
+// Provador Digital (Módulo 7), que envia a foto do cliente como data URL no
+// corpo JSON. `bodyParser: false` + registro manual abaixo é a forma
+// suportada de aumentar esse limite sem duplicar o parser que o Nest já
+// registraria sozinho.
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
+  app.use(json({ limit: '4mb' }));
+  app.use(urlencoded({ extended: true, limit: '4mb' }));
   const config = app.get(ConfigService<EnvConfig, true>);
 
   app.use(helmet());
