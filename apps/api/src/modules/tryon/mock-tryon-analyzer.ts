@@ -14,9 +14,9 @@ const STYLE_TEMPLATES = [
 const SIZE_POOL = ['38', '39', '40', '41', '42', '43', '44'];
 
 /**
- * Adapter de análise enquanto não há `ANTHROPIC_API_KEY` configurada
- * (decisão do usuário) — mesma lógica do `NullPaymentGateway`: em vez de
- * bloquear a experiência inteira até a chave existir, devolve um parecer
+ * Adapter de análise usado quando `ANTHROPIC_API_KEY` não está configurada
+ * (ver factory em `tryon.module.ts`) — mesma lógica do `NullPaymentGateway`:
+ * em vez de bloquear a experiência inteira sem a chave, devolve um parecer
  * ilustrativo (contextualizado com o produto de verdade, não genérico),
  * sinalizado como simulado via `isSimulated` — o frontend nunca deve
  * apresentar isto como se fosse uma análise real da foto do cliente.

@@ -1,6 +1,6 @@
 /**
- * Provador Digital (Módulo 7) — Fase 1: análise textual/de estilo real via
- * IA de visão, sem gerar imagem composta ainda (decisão do usuário). Sem
+ * Provador Digital (Módulo 7): análise textual/de estilo via IA de visão
+ * (Claude), sem gerar imagem composta ainda (decisão do usuário). Sem
  * ANTHROPIC_API_KEY configurada, a análise vem de um adapter simulado
  * (`MockTryOnAnalyzer`, ver apps/api) — `isSimulated` deixa isso explícito
  * para o frontend nunca apresentar uma prévia ilustrativa como se fosse

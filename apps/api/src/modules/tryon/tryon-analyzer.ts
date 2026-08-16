@@ -8,14 +8,12 @@ export interface TryOnAnalysisContext {
 
 /**
  * Porta de análise do Provador Digital (Módulo 7): abstração sobre "dado
- * uma foto + um produto, gerar um parecer de estilo/caimento", implementada
- * hoje só por `MockTryOnAnalyzer` (sem ANTHROPIC_API_KEY ainda — decisão do
- * usuário). Classe abstrata pelo mesmo motivo de `PaymentGateway`: é o
- * próprio token de injeção do Nest.
- *
- * Plugar a Anthropic API de verdade no futuro é escrever um adapter que
- * implementa `analyze` chamando visão computacional de verdade e trocar o
- * `useClass` em `tryon.module.ts` — controller e frontend não mudam.
+ * uma foto + um produto, gerar um parecer de estilo/caimento". Duas
+ * implementações — `ClaudeTryOnAnalyzer` (real, via visão computacional) e
+ * `MockTryOnAnalyzer` (parecer ilustrativo) — escolhidas em runtime pela
+ * factory em `tryon.module.ts` conforme `ANTHROPIC_API_KEY` estar configurada
+ * ou não. Classe abstrata pelo mesmo motivo de `PaymentGateway`: é o próprio
+ * token de injeção do Nest.
  */
 export abstract class TryOnAnalyzer {
   abstract analyze(context: TryOnAnalysisContext): Promise<TryOnAnalysisResult>;
