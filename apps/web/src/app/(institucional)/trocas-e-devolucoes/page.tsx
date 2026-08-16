@@ -20,8 +20,9 @@ export default function ExchangesPage() {
         <Text tone="muted">
           Você tem até 30 dias corridos após o recebimento para solicitar a troca de tamanho ou cor,
           sujeita à disponibilidade em estoque. O frete de reenvio da troca é por nossa conta quando
-          a solicitação é feita dentro do prazo. A solicitação é aberta pela Área do Cliente, em
-          &quot;Meus Pedidos&quot; → &quot;Solicitar troca&quot;.
+          a solicitação é feita dentro do prazo. Por enquanto, a solicitação é aberta pelo
+          contato@asnsupply.com, informando o número do pedido — a área do cliente para abrir isso
+          online está a caminho.
         </Text>
       </section>
 

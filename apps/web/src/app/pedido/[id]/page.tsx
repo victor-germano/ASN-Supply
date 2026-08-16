@@ -5,7 +5,7 @@ import { getOrder, getPaymentIntent } from '@/services/order.service';
 import { OrderConfirmation } from '@/features/order/components/OrderConfirmation/OrderConfirmation';
 
 export const metadata: Metadata = {
-  title: 'Confirmação do pedido — ASN Supply',
+  title: 'Confirmação do pedido',
   robots: { index: false, follow: false },
 };
 

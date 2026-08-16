@@ -66,8 +66,7 @@ export default function PrivacyPolicyPage() {
         </Heading>
         <Text tone="muted">
           Você pode solicitar a qualquer momento a confirmação, correção, portabilidade ou exclusão
-          dos seus dados, bem como revogar consentimentos concedidos, através da Área do Cliente ou
-          pelo contato@asnsupply.com.
+          dos seus dados, bem como revogar consentimentos concedidos, pelo contato@asnsupply.com.
         </Text>
       </section>
 

@@ -16,12 +16,12 @@ const FAQ_ITEMS = [
   {
     question: 'Quais formas de pagamento vocês aceitam?',
     answer:
-      'Cartão de crédito (em até 12x), PIX com confirmação instantânea e processamento via Mercado Pago. Todo o pagamento é processado por gateways certificados — a ASN Supply nunca armazena dados completos de cartão.',
+      'O pagamento online (cartão de crédito e PIX via gateway certificado) chega em breve. Por enquanto, ao confirmar o pedido no checkout ele fica registrado e aguardando — avisamos os próximos passos por e-mail assim que o pagamento estiver disponível.',
   },
   {
     question: 'Como funciona a troca de tamanho?',
     answer:
-      'Você tem até 30 dias corridos após o recebimento para solicitar troca de numeração, sem custo adicional no frete de reenvio. A solicitação é feita pela Área do Cliente, em "Meus Pedidos".',
+      'Você tem até 30 dias corridos após o recebimento para solicitar troca de numeração, sem custo adicional no frete de reenvio. Por enquanto, a solicitação é feita pelo contato@asnsupply.com informando o número do pedido — a área do cliente para acompanhar isso online está a caminho.',
   },
   {
     question: 'Posso devolver um produto e ser reembolsado?',

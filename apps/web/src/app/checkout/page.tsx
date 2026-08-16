@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { CheckoutView } from '@/features/checkout/components/CheckoutView/CheckoutView';
 
 export const metadata: Metadata = {
-  title: 'Checkout — ASN Supply',
+  title: 'Checkout',
   robots: { index: false, follow: false },
 };
 
