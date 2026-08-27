@@ -81,6 +81,12 @@ pnpm dev
 | `pnpm typecheck` | `tsc --noEmit` em todo o monorepo                                      |
 | `pnpm test`      | Testes unitários (Vitest) em todo o monorepo                           |
 
+## Histórico do projeto
+
+[`docs/HISTORICO.md`](docs/HISTORICO.md) é o registro narrativo de tudo que foi construído, em que
+ordem, por quê, e o que ficou pra depois — atualizado a cada mudança de produto. Este README
+descreve o estado _atual_; aquele documento descreve a _evolução_.
+
 ## Roteiro de módulos
 
 O produto é construído módulo a módulo — cada um com plano técnico próprio, implementação

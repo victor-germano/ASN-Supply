@@ -25,6 +25,9 @@ pnpm-debug.log*
 
 # testing
 coverage/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.cache/
 
 # editor / os
 .DS_Store
