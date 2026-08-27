@@ -408,6 +408,53 @@ registrada, não esquecimento" de todo módulo anterior.
   catálogo ainda não tem. Documentado aqui pra revisitar se o catálogo
   crescer muito.
 
+### Marca d'água sutil no login/cadastro (27/08/2026, commit `df7cf77`)
+
+Pedido antigo do usuário, finalmente resolvido — a logo real (colada
+depois em PDF na conversa) nunca chegou como arquivo em disco neste
+ambiente, só como conteúdo visual; a marca foi desenhada à mão em SVG
+(`LogoMark`) a partir do que foi visto, fiel o bastante pra um
+elemento decorativo a 3,5% de opacidade atrás dos formulários de
+`/entrar`, `/criar-conta` e `/admin/entrar` (`AuthBackground`). Se um
+dia precisar de fidelidade pixel-perfect, trocar por um SVG exportado
+direto do arquivo original é suficiente.
+
+### Endereço salvo selecionável no checkout (27/08/2026, commit `37032ed`)
+
+A API já aceitava `addressId` desde a Área do Cliente, mas escolher um
+endereço salvo direto no checkout não tinha UI própria. `AddressSelector`
+só aparece pra cliente autenticado com pelo menos um endereço salvo —
+convidado nunca vê isto. Endereço padrão pré-selecionado automaticamente;
+os campos digitados (ocultos nesse caso) recebem os mesmos valores via
+`setValue` só pra manter a validação e o resumo funcionando — o pedido em
+si sempre vai com `addressId` quando há seleção, nunca com uma cópia que
+pode estar desatualizada em relação ao endereço salvo de verdade.
+
+### CRUD de marca/categoria/coleção no painel admin (27/08/2026, commit `2aaa25c`)
+
+O Painel Admin (Módulo 6) cobriu só produto; marca/categoria/coleção
+ficaram de fora do escopo na época e só eram editáveis direto no banco.
+`AdminCatalogModule` (API) fecha essa lacuna — mesmo mecanismo de acesso
+das rotas administrativas já existentes. `/admin/catalogo` (Web) usa abas
+em vez de páginas dedicadas como em Produtos: os formulários são pequenos
+o bastante (2 a 5 campos) pra não justificar a mesma estrutura. Checagem
+de ciclo na árvore de categorias (uma categoria não pode virar pai dela
+mesma, direto ou via um descendente); erros de FK ao excluir marca/
+categoria ainda em uso viram mensagem clara, não 500 cru do Prisma.
+
+### Cliente envia pergunta/avaliação pela própria conta (27/08/2026, commit `1cffbbf`)
+
+O schema de `Review` já exigia `userId` desde o Módulo 0, e o comentário
+em `ProductQuestion` já previa isto: "perguntar de fato fica bloqueado
+até [a Área do Cliente existir]". `POST /reviews` e `POST /questions`,
+ambos atrás de `JwtAuthGuard` — `authorName`/`askerName` sempre vêm do
+usuário autenticado, nunca de texto livre do body. Uma avaliação por
+cliente por produto (409 na segunda tentativa); `isVerifiedPurchase`
+calculado pelo servidor a partir do histórico real de pedidos, nunca
+aceito do client; `Product.averageRating`/`reviewCount` (cache
+denormalizado desde o Módulo 0, nunca populado até agora) recalculados
+na mesma transação da criação da avaliação.
+
 ---
 
 ## Como manter isto atualizado
