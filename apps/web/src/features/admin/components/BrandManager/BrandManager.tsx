@@ -6,6 +6,7 @@ import type { Brand } from '@asn/types';
 import { Button, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { ImageUploadField } from '@/components/form/ImageUploadField';
 import {
   createAdminBrandAction,
   deleteAdminBrandAction,
@@ -128,6 +129,7 @@ function BrandForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<BrandFormValues>({
     mode: 'onBlur',
@@ -165,12 +167,13 @@ function BrandForm({
         />
         <FieldErrorText error={errors.name} />
       </div>
-      <div>
-        <label className={labelClassName} htmlFor="brand-logoUrl">
-          URL do logo <span className="normal-case text-ink-muted/70">(opcional)</span>
-        </label>
-        <input id="brand-logoUrl" className={inputClassName} {...register('logoUrl')} />
-      </div>
+      <ImageUploadField
+        id="brand-logoUrl"
+        label="Logo"
+        optional
+        registration={register('logoUrl')}
+        onUploaded={({ url }) => setValue('logoUrl', url)}
+      />
       {submitError && (
         <Text size="sm" className="text-error" role="alert">
           {submitError}

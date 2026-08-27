@@ -6,6 +6,7 @@ import type { AdminCollection } from '@asn/types';
 import { Badge, Button, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { ImageUploadField } from '@/components/form/ImageUploadField';
 import {
   createAdminCollectionAction,
   deleteAdminCollectionAction,
@@ -136,6 +137,7 @@ function CollectionForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CollectionFormValues>({
     mode: 'onBlur',
@@ -199,16 +201,13 @@ function CollectionForm({
         />
         <FieldErrorText error={errors.description} />
       </div>
-      <div>
-        <label className={labelClassName} htmlFor="collection-coverImageUrl">
-          URL da capa <span className="normal-case text-ink-muted/70">(opcional)</span>
-        </label>
-        <input
-          id="collection-coverImageUrl"
-          className={inputClassName}
-          {...register('coverImageUrl')}
-        />
-      </div>
+      <ImageUploadField
+        id="collection-coverImageUrl"
+        label="Capa"
+        optional
+        registration={register('coverImageUrl')}
+        onUploaded={({ url }) => setValue('coverImageUrl', url)}
+      />
       <div>
         <label className={labelClassName} htmlFor="collection-coverImageAlt">
           Texto alternativo da capa{' '}

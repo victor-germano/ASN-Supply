@@ -6,6 +6,7 @@ import type { AdminCategory } from '@asn/types';
 import { Button, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { ImageUploadField } from '@/components/form/ImageUploadField';
 import {
   createAdminCategoryAction,
   deleteAdminCategoryAction,
@@ -141,6 +142,7 @@ function CategoryForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CategoryFormValues>({
     mode: 'onBlur',
@@ -207,12 +209,13 @@ function CategoryForm({
           ))}
         </select>
       </div>
-      <div>
-        <label className={labelClassName} htmlFor="category-imageUrl">
-          URL da imagem <span className="normal-case text-ink-muted/70">(opcional)</span>
-        </label>
-        <input id="category-imageUrl" className={inputClassName} {...register('imageUrl')} />
-      </div>
+      <ImageUploadField
+        id="category-imageUrl"
+        label="Imagem"
+        optional
+        registration={register('imageUrl')}
+        onUploaded={({ url }) => setValue('imageUrl', url)}
+      />
       <div>
         <label className={labelClassName} htmlFor="category-imageAlt">
           Texto alternativo da imagem{' '}

@@ -7,6 +7,7 @@ import type { AdminProductDetail, Brand, Category, Collection, ProductGender } f
 import { Button, Heading, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { ImageUploadField } from '@/components/form/ImageUploadField';
 import type { AdminProductFormInput } from '@/services/adminProducts.service';
 import { createAdminProductAction, updateAdminProductAction } from '@/actions/adminProducts';
 
@@ -121,6 +122,7 @@ export function ProductForm({
     register,
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<ProductFormValues>({ defaultValues: toFormValues(product) });
 
@@ -363,13 +365,16 @@ export function ProductForm({
               key={field.id}
               className="grid grid-cols-1 gap-3 border border-ink/10 p-4 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]"
             >
-              <div>
-                <label className={labelClassName}>URL</label>
-                <input
-                  className={inputClassName}
-                  {...register(`images.${index}.url`, { required: true })}
-                />
-              </div>
+              <ImageUploadField
+                id={`images-${index}-url`}
+                label="URL"
+                registration={register(`images.${index}.url`, { required: true })}
+                onUploaded={({ url, width, height }) => {
+                  setValue(`images.${index}.url`, url);
+                  setValue(`images.${index}.width`, width);
+                  setValue(`images.${index}.height`, height);
+                }}
+              />
               <div>
                 <label className={labelClassName}>Texto alternativo</label>
                 <input

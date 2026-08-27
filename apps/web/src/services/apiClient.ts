@@ -50,7 +50,13 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   // enumeráveis — o que perderia silenciosamente o `Authorization` que
   // acabou de ser setado ali.
   const headers = new Headers(options.init?.headers);
-  if (!headers.has('Content-Type')) {
+  // `FormData` (usado por `uploadAdminImage`) nunca ganha `Content-Type`
+  // manual — o multipart boundary certo só existe depois que o `fetch`
+  // serializa o body de verdade; setar `application/json` aqui quebraria
+  // esse upload (a API leria um body multipart com Content-Type mentindo
+  // que é JSON).
+  const isFormData = options.init?.body instanceof FormData;
+  if (!headers.has('Content-Type') && !isFormData) {
     headers.set('Content-Type', 'application/json');
   }
 

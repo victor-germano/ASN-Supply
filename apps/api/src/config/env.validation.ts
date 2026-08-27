@@ -29,7 +29,13 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   MERCADO_PAGO_ACCESS_TOKEN: z.string().optional(),
+  // Upload de imagem no painel admin — ver `ImageUploader`/`uploads.module.ts`.
+  // Sem ela, `POST /admin/uploads` responde 503 (`UnavailableImageUploader`)
+  // e o formulário cai no campo de URL colada, que sempre funcionou.
   CLOUDINARY_URL: z.string().optional(),
+  // Reservadas — alternativa a Cloudinary nunca implementada (só um dos
+  // dois adapters foi construído; mesmo espírito de só ter
+  // `NullPaymentGateway` até um gateway real ser escolhido).
   AWS_S3_BUCKET: z.string().optional(),
   AWS_REGION: z.string().optional(),
   AWS_ACCESS_KEY_ID: z.string().optional(),
