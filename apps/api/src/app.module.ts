@@ -17,6 +17,7 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { CartModule } from './modules/cart/cart.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
+import { AdminCatalogModule } from './modules/admin-catalog/admin-catalog.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AdminProductsModule } from './modules/admin-products/admin-products.mod
     CartModule,
     CouponsModule,
     AdminProductsModule,
+    AdminCatalogModule,
   ],
   providers: [
     {

@@ -209,3 +209,51 @@ export interface AdminProductDetail {
   images: AdminProductImage[];
   variants: AdminProductVariant[];
 }
+
+// ---------------------------------------------------------------------------
+// Painel Administrativo — marcas, categorias e coleções
+// ---------------------------------------------------------------------------
+
+/** `Brand` (leitura pública) já é o shape certo pra editar também — sem campo aninhado/derivado, reaproveitado direto pelo admin. */
+export interface CreateBrandInput {
+  name: string;
+  logoUrl?: string;
+}
+export type UpdateBrandInput = Partial<CreateBrandInput>;
+
+/** Igual a `Category`, mas com `imageUrl`/`imageAlt` separados (não aninhados em `image`) — o formulário de edição trabalha campo a campo, não com o objeto já montado pra exibição pública. */
+export interface AdminCategory {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  imageUrl: string | null;
+  imageAlt: string | null;
+}
+export interface CreateCategoryInput {
+  name: string;
+  parentId?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+}
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
+
+/** Igual a `Collection`, mas com `coverImageUrl`/`coverImageAlt` separados — mesmo motivo de `AdminCategory`. */
+export interface AdminCollection {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  launchedAt: string | null;
+}
+export interface CreateCollectionInput {
+  name: string;
+  description: string;
+  coverImageUrl?: string;
+  coverImageAlt?: string;
+  /** `null`/omitido = ainda não lançada (não aparece em "Lançamentos" nem em `/colecoes/[slug]`, ver `CollectionsRepository.findBySlug`). */
+  launchedAt?: string | null;
+}
+export type UpdateCollectionInput = Partial<CreateCollectionInput>;
