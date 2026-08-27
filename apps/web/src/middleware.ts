@@ -23,10 +23,24 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
  * pagar exige conta. A API não muda por causa disso: `OrdersController`
  * continua aceitando pedido de convidado via `OptionalJwtAuthGuard`; o
  * gate é só do lado do site.
+ *
+ * `/admin/:path*` cobre a área administrativa — mas o próprio
+ * `/admin/entrar` (a página de login) não pode cair na mesma exigência,
+ * senão um visitante sem sessão é redirecionado pra ela e nunca
+ * consegue chegar lá (loop). `isAdminLoginRoute` abaixo trata esse caso
+ * antes de qualquer checagem de token.
  */
 export const config = {
-  matcher: ['/conta/:path*', '/checkout'],
+  matcher: ['/conta/:path*', '/checkout', '/admin/:path*'],
 };
+
+function isAdminRoute(pathname: string): boolean {
+  return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
+function isAdminLoginRoute(pathname: string): boolean {
+  return pathname === '/admin/entrar';
+}
 
 function base64UrlDecode(segment: string): string {
   const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
@@ -34,16 +48,33 @@ function base64UrlDecode(segment: string): string {
   return atob(base64 + '='.repeat(paddingNeeded));
 }
 
-/** Só lê o `exp` — nunca verifica assinatura. A API é a única fonte de verdade sobre validade real. */
-function readExpiry(token: string): number | null {
+function decodePayload(token: string): { exp?: number; role?: string } | null {
   try {
     const payloadSegment = token.split('.')[1];
     if (!payloadSegment) return null;
-    const payload = JSON.parse(base64UrlDecode(payloadSegment)) as { exp?: number };
-    return typeof payload.exp === 'number' ? payload.exp : null;
+    return JSON.parse(base64UrlDecode(payloadSegment)) as { exp?: number; role?: string };
   } catch {
     return null;
   }
+}
+
+/** Só lê o `exp` — nunca verifica assinatura. A API é a única fonte de verdade sobre validade real. */
+function readExpiry(token: string): number | null {
+  const payload = decodePayload(token);
+  return typeof payload?.exp === 'number' ? payload.exp : null;
+}
+
+/**
+ * Só decorativo/defesa em profundidade — nunca verifica assinatura (isso
+ * já vale para `readExpiry` acima, mesmo raciocínio aqui). Um token
+ * adulterado que minta `role: 'ADMIN'` no payload não passa disso: a API
+ * (`JwtStrategy`, `RolesGuard`) sempre revalida com a assinatura de
+ * verdade em toda request real — este gate aqui só evita a viagem até lá
+ * pra quem obviamente não é admin, a mesma lógica de `AdminLayout`
+ * (`user.role !== 'ADMIN'`) na camada de baixo.
+ */
+function readRole(token: string): string | undefined {
+  return decodePayload(token)?.role;
 }
 
 function isExpiredOrMissing(token: string | undefined): boolean {
@@ -55,14 +86,23 @@ function isExpiredOrMissing(token: string | undefined): boolean {
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const pathname = request.nextUrl.pathname;
+  // A própria página de login administrativo não pode exigir sessão —
+  // senão um visitante sem conta é redirecionado pra ela e nunca chega
+  // lá (loop). Ver comentário em `isAdminLoginRoute`.
+  if (isAdminLoginRoute(pathname)) {
+    return NextResponse.next();
+  }
+  const wantsAdmin = isAdminRoute(pathname);
+
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (!isExpiredOrMissing(accessToken)) {
-    return NextResponse.next();
+    return guardAdminRole(request, wantsAdmin, accessToken!);
   }
 
   const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
   if (!refreshToken) {
-    return redirectToLogin(request);
+    return redirectToLogin(request, wantsAdmin);
   }
 
   try {
@@ -72,10 +112,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       body: JSON.stringify({ refreshToken }),
     });
     if (!response.ok) {
-      return redirectToLogin(request);
+      return redirectToLogin(request, wantsAdmin);
     }
 
     const data = (await response.json()) as { accessToken: string; refreshToken: string };
+
+    if (wantsAdmin && readRole(data.accessToken) !== 'ADMIN') {
+      return redirectAway(request);
+    }
 
     // Também escreve nos cookies da REQUEST (não só da response): senão o
     // Server Component desta mesma passada ainda lê o `asn_at` velho (o
@@ -99,15 +143,40 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   } catch {
     // API fora do ar/inalcançável — trata como sessão inválida em vez de
     // travar a navegação da rota protegida.
-    return redirectToLogin(request);
+    return redirectToLogin(request, wantsAdmin);
   }
 }
 
-function redirectToLogin(request: NextRequest): NextResponse {
-  const url = new URL('/entrar', request.url);
-  url.searchParams.set('next', request.nextUrl.pathname);
+/**
+ * Token já válido (não expirado) — só falta a checagem de papel para
+ * rotas administrativas. Cliente comum autenticado (`CUSTOMER`) volta
+ * pra `/` em silêncio (`redirectAway`), não pra tela de login — não faz
+ * sentido "convidar" alguém a logar numa área que já sabemos que não é
+ * dele.
+ */
+function guardAdminRole(
+  request: NextRequest,
+  wantsAdmin: boolean,
+  accessToken: string,
+): NextResponse {
+  if (wantsAdmin && readRole(accessToken) !== 'ADMIN') {
+    return redirectAway(request);
+  }
+  return NextResponse.next();
+}
+
+function redirectToLogin(request: NextRequest, wantsAdmin: boolean): NextResponse {
+  const url = new URL(wantsAdmin ? '/admin/entrar' : '/entrar', request.url);
+  if (!wantsAdmin) {
+    url.searchParams.set('next', request.nextUrl.pathname);
+  }
   const response = NextResponse.redirect(url);
   response.cookies.delete(ACCESS_TOKEN_COOKIE);
   response.cookies.delete(REFRESH_TOKEN_COOKIE);
   return response;
+}
+
+/** Sessão válida, mas sem o papel exigido pela rota — não é "não autenticado", então não redireciona pra login nenhum. */
+function redirectAway(request: NextRequest): NextResponse {
+  return NextResponse.redirect(new URL('/', request.url));
 }

@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { UsersModule } from '../users/users.module';
 import type { EnvConfig } from '../../config/env.validation';
 
@@ -18,8 +19,9 @@ import type { EnvConfig } from '../../config/env.validation';
  * para assinar/verificar o refresh token, que passa fora do fluxo padrão de
  * `Authorization` header.
  *
- * `JwtAuthGuard`/`OptionalJwtAuthGuard` são exportados para outros módulos
- * (`OrdersModule`) reusarem sem reimplementar guard nenhum.
+ * `JwtAuthGuard`/`OptionalJwtAuthGuard`/`RolesGuard` são exportados para
+ * outros módulos (`OrdersModule`, e futuramente as rotas administrativas)
+ * reusarem sem reimplementar guard nenhum.
  */
 @Module({
   imports: [
@@ -34,7 +36,7 @@ import type { EnvConfig } from '../../config/env.validation';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, OptionalJwtAuthGuard],
-  exports: [JwtAuthGuard, OptionalJwtAuthGuard],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, OptionalJwtAuthGuard, RolesGuard],
+  exports: [JwtAuthGuard, OptionalJwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

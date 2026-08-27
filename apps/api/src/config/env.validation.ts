@@ -26,9 +26,9 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
-  // Fundação do painel administrativo (Módulo 6, ainda não implementado) —
-  // ver AdminAuthGuard. Opcional porque nenhuma rota admin existe ainda;
-  // vira obrigatório em espírito no dia em que a primeira existir.
+  // LEGADO — não usada mais. O acesso administrativo agora é Role.ADMIN +
+  // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário
+  // em `apps/api/src/modules/admin/admin.module.ts`.
   ADMIN_API_KEY: z.string().optional(),
 });
 

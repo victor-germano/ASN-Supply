@@ -9,7 +9,6 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
-import { AdminModule } from './modules/admin/admin.module';
 import { TryOnModule } from './modules/tryon/tryon.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -36,7 +35,6 @@ import { AddressesModule } from './modules/addresses/addresses.module';
     MarketingModule,
     PaymentsModule,
     OrdersModule,
-    AdminModule,
     TryOnModule,
     UsersModule,
     AuthModule,
