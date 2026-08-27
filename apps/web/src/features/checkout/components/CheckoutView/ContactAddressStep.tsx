@@ -1,23 +1,32 @@
 import type { UseFormRegister, FieldErrors } from 'react-hook-form';
+import type { Address } from '@asn/types';
 import { Heading, Text } from '@asn/ui';
 import type { CheckoutFormValues } from './CheckoutFormValues';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { AddressSelector } from './AddressSelector';
 
 interface ContactAddressStepProps {
   register: UseFormRegister<CheckoutFormValues>;
   errors: FieldErrors<CheckoutFormValues>;
+  selectedAddressId: string | null;
+  onSelectAddress: (address: Address | null) => void;
 }
 
 /**
- * Pede contato + endereço de entrega direto no formulário. Convidado e
- * autenticado passam pelo mesmo passo hoje — a API já aceita um
- * `addressId` de endereço salvo em vez do endereço digitado (Área do
- * Cliente), mas escolher um endereço salvo direto no checkout ainda não
- * tem UI própria; fica como fast-follow natural sobre o CRUD de endereços
- * já disponível em /conta/enderecos.
+ * Pede contato + endereço de entrega. Convidado sempre digita (nunca vê o
+ * `AddressSelector` — ver checagem de usuário lá dentro); cliente
+ * autenticado com endereço salvo vê o seletor primeiro, com o padrão
+ * pré-selecionado, e só cai no formulário digitado abaixo se escolher
+ * "Digitar outro endereço" (ou não tiver nenhum salvo ainda).
  */
-export function ContactAddressStep({ register, errors }: ContactAddressStepProps) {
+export function ContactAddressStep({
+  register,
+  errors,
+  selectedAddressId,
+  onSelectAddress,
+}: ContactAddressStepProps) {
+  const isUsingSavedAddress = selectedAddressId !== null;
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -85,117 +94,120 @@ export function ContactAddressStep({ register, errors }: ContactAddressStepProps
         <Heading as="h2" size="sm" className="mb-4">
           Endereço de entrega
         </Heading>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-          <div className="sm:col-span-4">
-            <label htmlFor="recipientName" className={labelClassName}>
-              Quem recebe
-            </label>
-            <input
-              id="recipientName"
-              className={inputClassName}
-              placeholder="Nome de quem vai receber"
-              {...register('recipientName', {
-                required: 'Informe quem vai receber.',
-                minLength: { value: 2, message: 'Nome muito curto.' },
-              })}
-            />
-            <FieldErrorText error={errors.recipientName} />
-          </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="zipCode" className={labelClassName}>
-              CEP
-            </label>
-            <input
-              id="zipCode"
-              className={inputClassName}
-              placeholder="00000-000"
-              {...register('zipCode', {
-                required: 'Informe o CEP.',
-                pattern: { value: /^\d{5}-?\d{3}$/, message: 'CEP inválido.' },
-              })}
-            />
-            <FieldErrorText error={errors.zipCode} />
-          </div>
+        <AddressSelector selectedAddressId={selectedAddressId} onSelect={onSelectAddress} />
+        {!isUsingSavedAddress && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+            <div className="sm:col-span-4">
+              <label htmlFor="recipientName" className={labelClassName}>
+                Quem recebe
+              </label>
+              <input
+                id="recipientName"
+                className={inputClassName}
+                placeholder="Nome de quem vai receber"
+                {...register('recipientName', {
+                  required: 'Informe quem vai receber.',
+                  minLength: { value: 2, message: 'Nome muito curto.' },
+                })}
+              />
+              <FieldErrorText error={errors.recipientName} />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="zipCode" className={labelClassName}>
+                CEP
+              </label>
+              <input
+                id="zipCode"
+                className={inputClassName}
+                placeholder="00000-000"
+                {...register('zipCode', {
+                  required: 'Informe o CEP.',
+                  pattern: { value: /^\d{5}-?\d{3}$/, message: 'CEP inválido.' },
+                })}
+              />
+              <FieldErrorText error={errors.zipCode} />
+            </div>
 
-          <div className="sm:col-span-4">
-            <label htmlFor="street" className={labelClassName}>
-              Rua
-            </label>
-            <input
-              id="street"
-              className={inputClassName}
-              placeholder="Nome da rua"
-              {...register('street', { required: 'Informe a rua.' })}
-            />
-            <FieldErrorText error={errors.street} />
-          </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="number" className={labelClassName}>
-              Número
-            </label>
-            <input
-              id="number"
-              className={inputClassName}
-              placeholder="123"
-              {...register('number', { required: 'Informe o número.' })}
-            />
-            <FieldErrorText error={errors.number} />
-          </div>
+            <div className="sm:col-span-4">
+              <label htmlFor="street" className={labelClassName}>
+                Rua
+              </label>
+              <input
+                id="street"
+                className={inputClassName}
+                placeholder="Nome da rua"
+                {...register('street', { required: 'Informe a rua.' })}
+              />
+              <FieldErrorText error={errors.street} />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="number" className={labelClassName}>
+                Número
+              </label>
+              <input
+                id="number"
+                className={inputClassName}
+                placeholder="123"
+                {...register('number', { required: 'Informe o número.' })}
+              />
+              <FieldErrorText error={errors.number} />
+            </div>
 
-          <div className="sm:col-span-3">
-            <label htmlFor="complement" className={labelClassName}>
-              Complemento <span className="normal-case text-ink-muted/70">(opcional)</span>
-            </label>
-            <input
-              id="complement"
-              className={inputClassName}
-              placeholder="Apto, bloco..."
-              {...register('complement')}
-            />
-          </div>
-          <div className="sm:col-span-3">
-            <label htmlFor="neighborhood" className={labelClassName}>
-              Bairro
-            </label>
-            <input
-              id="neighborhood"
-              className={inputClassName}
-              placeholder="Bairro"
-              {...register('neighborhood', { required: 'Informe o bairro.' })}
-            />
-            <FieldErrorText error={errors.neighborhood} />
-          </div>
+            <div className="sm:col-span-3">
+              <label htmlFor="complement" className={labelClassName}>
+                Complemento <span className="normal-case text-ink-muted/70">(opcional)</span>
+              </label>
+              <input
+                id="complement"
+                className={inputClassName}
+                placeholder="Apto, bloco..."
+                {...register('complement')}
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label htmlFor="neighborhood" className={labelClassName}>
+                Bairro
+              </label>
+              <input
+                id="neighborhood"
+                className={inputClassName}
+                placeholder="Bairro"
+                {...register('neighborhood', { required: 'Informe o bairro.' })}
+              />
+              <FieldErrorText error={errors.neighborhood} />
+            </div>
 
-          <div className="sm:col-span-4">
-            <label htmlFor="city" className={labelClassName}>
-              Cidade
-            </label>
-            <input
-              id="city"
-              className={inputClassName}
-              placeholder="Cidade"
-              {...register('city', { required: 'Informe a cidade.' })}
-            />
-            <FieldErrorText error={errors.city} />
+            <div className="sm:col-span-4">
+              <label htmlFor="city" className={labelClassName}>
+                Cidade
+              </label>
+              <input
+                id="city"
+                className={inputClassName}
+                placeholder="Cidade"
+                {...register('city', { required: 'Informe a cidade.' })}
+              />
+              <FieldErrorText error={errors.city} />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="state" className={labelClassName}>
+                UF
+              </label>
+              <input
+                id="state"
+                className={inputClassName}
+                placeholder="SP"
+                maxLength={2}
+                {...register('state', {
+                  required: 'Informe o estado.',
+                  minLength: { value: 2, message: 'Use a sigla (ex: SP).' },
+                  maxLength: { value: 2, message: 'Use a sigla (ex: SP).' },
+                })}
+              />
+              <FieldErrorText error={errors.state} />
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="state" className={labelClassName}>
-              UF
-            </label>
-            <input
-              id="state"
-              className={inputClassName}
-              placeholder="SP"
-              maxLength={2}
-              {...register('state', {
-                required: 'Informe o estado.',
-                minLength: { value: 2, message: 'Use a sigla (ex: SP).' },
-                maxLength: { value: 2, message: 'Use a sigla (ex: SP).' },
-              })}
-            />
-            <FieldErrorText error={errors.state} />
-          </div>
-        </div>
+        )}
       </div>
 
       <Text size="xs" tone="muted">

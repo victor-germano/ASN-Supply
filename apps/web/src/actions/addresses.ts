@@ -6,6 +6,7 @@ import { ApiError } from '@/services/apiClient';
 import {
   createAddress,
   deleteAddress,
+  getAddresses,
   setDefaultAddress,
   updateAddress,
 } from '@/services/address.service';
@@ -19,6 +20,20 @@ function genericErrorMessage(error: unknown): string {
   return error instanceof ApiError
     ? error.message
     : 'Não foi possível salvar seu endereço agora. Tente novamente em instantes.';
+}
+
+/**
+ * Chamada a partir do seletor de endereço salvo no checkout (Client
+ * Component) — `null` em vez de lançar: convidado (401) e qualquer outra
+ * falha viram "sem endereços salvos, segue com o formulário digitado" em
+ * vez de erro visível, mesmo padrão best-effort de `getWishlistAction`.
+ */
+export async function getAddressesAction(): Promise<Address[] | null> {
+  try {
+    return await getAddresses();
+  } catch {
+    return null;
+  }
 }
 
 export async function createAddressAction(input: CreateAddressInput): Promise<AddressActionResult> {
