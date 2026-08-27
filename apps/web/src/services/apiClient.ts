@@ -1,6 +1,7 @@
 import type { ApiErrorBody } from '@asn/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
+const HTTP_STATUS_NO_CONTENT = 204;
 
 export class ApiError extends Error {
   constructor(
@@ -23,8 +24,17 @@ export interface ApiFetchOptions {
 
 /**
  * Cliente HTTP tipado para a API NestJS. Usado a partir de Server
- * Components (fetch direto, com cache do Next) e de Server Actions
- * (mutações). Nunca é chamado com a URL base hardcoded fora deste módulo.
+ * Components (fetch direto, com cache do Next), de Server Actions
+ * (mutações) e — desde o RecentlyViewed (Módulo 3) — também de client
+ * components lendo dados client-only. Nunca é chamado com a URL base
+ * hardcoded fora deste módulo.
+ *
+ * Deliberadamente sem nenhuma lógica de cookie/sessão aqui: qualquer coisa
+ * que use `next/headers` (mesmo que só chamada condicionalmente) faz o
+ * Next recusar empacotar o módulo inteiro para o cliente — e este arquivo
+ * é importado por client components. Chamadas autenticadas usam
+ * `authenticatedFetch` (`authenticatedFetch.ts`), que fica isolado num
+ * arquivo só server-only.
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const url = new URL(`${API_URL}${path}`);
@@ -33,9 +43,20 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
 
+  // `new Headers(...)` em vez de espalhar `options.init?.headers` num
+  // objeto literal: espalhar uma instância de `Headers` (é o que
+  // `authenticatedFetch.ts` passa) não copia nada — `Headers` expõe seus
+  // pares via iterador/`.entries()`, não como propriedades próprias
+  // enumeráveis — o que perderia silenciosamente o `Authorization` que
+  // acabou de ser setado ali.
+  const headers = new Headers(options.init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const response = await fetch(url, {
     ...options.init,
-    headers: { 'Content-Type': 'application/json', ...options.init?.headers },
+    headers,
     next:
       options.revalidateSeconds !== undefined
         ? { revalidate: options.revalidateSeconds }
@@ -51,5 +72,10 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     );
   }
 
+  // 204 No Content (ex: DELETE /addresses/:id) não tem corpo — chamar
+  // .json() nesse caso lançaria "Unexpected end of JSON input" à toa.
+  if (response.status === HTTP_STATUS_NO_CONTENT) {
+    return undefined as T;
+  }
   return response.json() as Promise<T>;
 }
