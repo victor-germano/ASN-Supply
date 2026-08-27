@@ -1,3 +1,4 @@
+import './instrument';
 import 'reflect-metadata';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';

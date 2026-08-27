@@ -36,6 +36,10 @@ const envSchema = z.object({
   // CORS_ALLOWED_ORIGINS (que pode ter mais de uma origem); esta é sempre
   // uma única URL canônica.
   WEB_APP_URL: z.string().url().default('http://localhost:3000'),
+  // Observability — sem SENTRY_DSN, `Sentry.init` roda com dsn vazio e
+  // não manda nada pra lugar nenhum (comportamento padrão do SDK, não
+  // uma checagem nossa) — dev/CI não dependem de conta no Sentry.
+  SENTRY_DSN: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
   // LEGADO — não usada mais. O acesso administrativo agora é Role.ADMIN +
   // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import * as Sentry from '@sentry/nextjs';
 import { Button, Container, Heading, Text, buttonStyles } from '@asn/ui';
 
 /**
@@ -17,8 +18,7 @@ export default function ErrorBoundary({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Observabilidade mínima até termos um serviço de erro dedicado (Sentry ou similar).
-    console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

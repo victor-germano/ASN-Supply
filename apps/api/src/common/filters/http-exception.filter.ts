@@ -1,5 +1,6 @@
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import type { Request, Response } from 'express';
 import type { ApiErrorBody } from '@asn/types';
 
@@ -34,6 +35,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url} -> ${statusCode}`,
         exception instanceof Error ? exception.stack : undefined,
       );
+      // Só 500+ (erro nosso, não erro de validação/negócio do cliente) —
+      // um 404/400 esperado não deveria virar ruído no Sentry. No-op sem
+      // `SENTRY_DSN` configurada (ver `instrument.ts`).
+      Sentry.captureException(exception);
     }
 
     response.status(statusCode).json(body);

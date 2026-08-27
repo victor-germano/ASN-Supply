@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -38,4 +40,17 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// `withSentryConfig` liga a instrumentação (client/server/edge configs na
+// raiz de apps/web) e, se `SENTRY_AUTH_TOKEN` existir, também sobe source
+// maps pro Sentry no build. `sourcemaps.disable` explícito sem o token
+// (não só deixar o plugin decidir sozinho) e `telemetry: false` — nenhuma
+// chamada de rede pro Sentry deveria acontecer num build de dev/CI sem
+// conta configurada. `silent: true` evita log do CLI poluindo `pnpm build`.
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});

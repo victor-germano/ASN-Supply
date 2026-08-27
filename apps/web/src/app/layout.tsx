@@ -6,6 +6,7 @@ import { WishlistSync } from '@/features/wishlist/components/WishlistSync/Wishli
 import { CartSync } from '@/features/cart/components/CartSync/CartSync';
 import { Header } from '@/components/layout/Header/Header';
 import { Footer } from '@/components/layout/Footer/Footer';
+import { Analytics } from '@/components/Analytics';
 import './globals.css';
 
 const displayFont = Cormorant_Garamond({
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Footer />
         </QueryProvider>
+        <Analytics />
       </body>
     </html>
   );
