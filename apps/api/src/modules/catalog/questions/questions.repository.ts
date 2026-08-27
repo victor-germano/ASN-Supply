@@ -1,10 +1,45 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PaginatedResult, ProductQuestion } from '@asn/types';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { CreateQuestionDto } from './dto/create-question.dto';
 
 @Injectable()
 export class QuestionsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * `askerName` grava o nome do usuário autenticado NO MOMENTO da pergunta
+   * (não uma FK para `User` — mesmo motivo do comentário original no
+   * schema: Q&A tradicionalmente mostra só um nome de exibição). Perguntar
+   * de fato exige conta agora que a Área do Cliente existe; sem resposta
+   * ainda (`answer: null`), aguardando alguém do time responder.
+   */
+  async create(askerName: string, dto: CreateQuestionDto): Promise<ProductQuestion> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new NotFoundException({
+        errorCode: 'PRODUCT_NOT_FOUND',
+        message: 'Produto não encontrado.',
+      });
+    }
+
+    const question = await this.prisma.productQuestion.create({
+      data: { productId: dto.productId, askerName, question: dto.question },
+    });
+
+    return {
+      id: question.id,
+      productId: question.productId,
+      askerName: question.askerName,
+      question: question.question,
+      answer: question.answer,
+      answeredAt: question.answeredAt?.toISOString() ?? null,
+      createdAt: question.createdAt.toISOString(),
+    };
+  }
 
   async findByProduct(
     productId: string,

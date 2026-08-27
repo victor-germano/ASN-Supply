@@ -113,8 +113,16 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       </Container>
 
       <Container>
-        <ReviewsSection productId={product.id} currentSearch={currentSearch} />
-        <QuestionsSection productId={product.id} currentSearch={currentSearch} />
+        <ReviewsSection
+          productId={product.id}
+          productSlug={product.slug}
+          currentSearch={currentSearch}
+        />
+        <QuestionsSection
+          productId={product.id}
+          productSlug={product.slug}
+          currentSearch={currentSearch}
+        />
       </Container>
 
       <RelatedProducts products={related} />

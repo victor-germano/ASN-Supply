@@ -4,9 +4,11 @@ import { Heading, Section, Text } from '@asn/ui';
 import { getReviews, getReviewsSummary } from '@/services/reviews.service';
 import { Pagination } from '@/features/catalog/components/Pagination/Pagination';
 import { StarIcon } from '@/components/icons';
+import { WriteReviewForm } from './WriteReviewForm';
 
 export interface ReviewsSectionProps {
   productId: string;
+  productSlug: string;
   currentSearch: string;
 }
 
@@ -23,7 +25,11 @@ function ratingHref(currentSearch: string, rating: number): string {
   return query ? `?${query}#avaliacoes` : '#avaliacoes';
 }
 
-export async function ReviewsSection({ productId, currentSearch }: ReviewsSectionProps) {
+export async function ReviewsSection({
+  productId,
+  productSlug,
+  currentSearch,
+}: ReviewsSectionProps) {
   const params = new URLSearchParams(currentSearch);
   const ratingParam = Number(params.get('nota'));
   const rating = [1, 2, 3, 4, 5].includes(ratingParam) ? ratingParam : undefined;
@@ -43,10 +49,11 @@ export async function ReviewsSection({ productId, currentSearch }: ReviewsSectio
         Avaliações
       </Heading>
 
+      <WriteReviewForm productId={productId} productSlug={productSlug} />
+
       {summary.reviewCount === 0 ? (
         <Text tone="muted">
-          Ainda não há avaliações para este produto — avaliar compras confirmadas direto pela sua
-          conta chega em breve.
+          Ainda não há avaliações para este produto — seja o primeiro a avaliar.
         </Text>
       ) : (
         <>

@@ -1,13 +1,19 @@
 import { Heading, Section, Text } from '@asn/ui';
 import { getQuestions } from '@/services/reviews.service';
 import { Pagination } from '@/features/catalog/components/Pagination/Pagination';
+import { AskQuestionForm } from './AskQuestionForm';
 
 export interface QuestionsSectionProps {
   productId: string;
+  productSlug: string;
   currentSearch: string;
 }
 
-export async function QuestionsSection({ productId, currentSearch }: QuestionsSectionProps) {
+export async function QuestionsSection({
+  productId,
+  productSlug,
+  currentSearch,
+}: QuestionsSectionProps) {
   const params = new URLSearchParams(currentSearch);
   const pageRaw = Number(params.get('perguntaPagina'));
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
@@ -16,14 +22,11 @@ export async function QuestionsSection({ productId, currentSearch }: QuestionsSe
 
   return (
     <Section id="perguntas" spacing="compact" className="border-t border-ink/10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <Heading as="h2" size="md">
-          Perguntas e Respostas
-        </Heading>
-        <Text size="sm" tone="muted">
-          Enviar perguntas direto por aqui chega em breve.
-        </Text>
-      </div>
+      <Heading as="h2" size="md" className="mb-8">
+        Perguntas e Respostas
+      </Heading>
+
+      <AskQuestionForm productId={productId} productSlug={productSlug} />
 
       {result.items.length === 0 ? (
         <Text tone="muted">Ainda não há perguntas sobre este produto.</Text>
