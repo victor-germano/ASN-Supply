@@ -13,6 +13,8 @@ import { TryOnModule } from './modules/tryon/tryon.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { CartModule } from './modules/cart/cart.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { AddressesModule } from './modules/addresses/addresses.module';
     UsersModule,
     AuthModule,
     AddressesModule,
+    WishlistModule,
+    CartModule,
   ],
   providers: [
     {

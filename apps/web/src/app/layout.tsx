@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Inter } from 'next/font/google';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { StoreHydration } from '@/providers/StoreHydration';
+import { WishlistSync } from '@/features/wishlist/components/WishlistSync/WishlistSync';
+import { CartSync } from '@/features/cart/components/CartSync/CartSync';
 import { Header } from '@/components/layout/Header/Header';
 import { Footer } from '@/components/layout/Footer/Footer';
 import './globals.css';
@@ -62,6 +64,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <QueryProvider>
           <StoreHydration />
+          <WishlistSync />
+          <CartSync />
           <Header />
           {children}
           <Footer />
