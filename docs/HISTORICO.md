@@ -597,6 +597,22 @@ pedidos mais recentes. `/admin` agora mostra isso em vez do texto
 fixo; e2e novo (`admin-access.spec.ts`) confirma que o texto antigo
 ("ainda não foi construído") não pode voltar a aparecer.
 
+### Testes unitários do dashboard admin (27/08/2026)
+
+O dashboard (commit anterior) tinha ficado só com cobertura e2e — a
+regra de negócio "o que conta como faturamento" morava numa constante
+solta dentro de `AdminDashboardRepository`, sem teste isolado nenhum.
+Extraída pra `revenue-status.ts` (`isRevenueStatus`/`revenueStatusList`),
+mesmo padrão de `orders/cancellation.ts` (`isOrderCancellableStatus`):
+uma fonte de verdade única, testável sozinha, sem precisar mockar o
+Prisma — este projeto nunca testa repositório contra um Prisma mockado
+(convenção existente: repositórios que falam com o banco só são
+verificados via e2e; o que tem regra de negócio isolável vira uma
+função pura testada à parte). `admin-dashboard.controller.spec.ts`
+fecha o padrão de `AdminUsersController.spec.ts` — mesmo sendo um
+delegate simples aqui (sem branch pra testar), documenta o contrato de
+retorno.
+
 ## Como manter isto atualizado
 
 Ao final de qualquer mudança de produto (não de tooling/config isolado),

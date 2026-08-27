@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AdminDashboardStats } from '@asn/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { toMoney } from '../../common/money.mapper';
-
-/** Conta como faturamento — carrinho ainda em `PENDING_PAYMENT` não é venda de verdade ainda. */
-const REVENUE_STATUSES = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] as const;
+import { revenueStatusList } from './revenue-status';
 
 const RECENT_ORDERS_LIMIT = 5;
 
@@ -22,7 +20,7 @@ export class AdminDashboardRepository {
       await Promise.all([
         this.prisma.order.aggregate({
           _sum: { totalInCents: true },
-          where: { status: { in: [...REVENUE_STATUSES] } },
+          where: { status: { in: revenueStatusList() } },
         }),
         this.prisma.order.count(),
         this.prisma.order.count({ where: { status: 'PENDING_PAYMENT' } }),
