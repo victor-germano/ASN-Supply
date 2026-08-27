@@ -141,3 +141,58 @@ export interface LookItem {
   priceLabel: string;
   externalUrl: string;
 }
+
+// ---------------------------------------------------------------------------
+// Painel Administrativo (Módulo 6) — CRUD de produtos
+// ---------------------------------------------------------------------------
+
+/** Linha da tabela de produtos do admin — mais enxuto que `ProductSummary` (sem rating/reviews, que não importam ali) e inclui rascunhos (`isPublished: false`). */
+export interface AdminProductListItem {
+  id: string;
+  slug: string;
+  name: string;
+  brandName: string;
+  categoryName: string;
+  priceInCents: number;
+  isPublished: boolean;
+  primaryImageUrl: string | null;
+  totalStock: number;
+}
+
+export interface AdminProductImage {
+  id: string;
+  url: string;
+  alt: string;
+  width: number;
+  height: number;
+  position: number;
+}
+
+export interface AdminProductVariant {
+  id: string;
+  sku: string;
+  size: string;
+  colorName: string;
+  colorHex: string;
+  stockQuantity: number;
+  priceOverrideInCents: number | null;
+}
+
+/** Shape "cru" (centavos, ids de FK direto) — o formulário de edição trabalha com isto, não com `ProductDetail` (que é a leitura pública, já formatada em `Money`/`Pick<>`). */
+export interface AdminProductDetail {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  materials: string[];
+  technologies: string[];
+  gender: ProductGender;
+  priceInCents: number;
+  compareAtPriceInCents: number | null;
+  brandId: string;
+  categoryId: string;
+  collectionId: string | null;
+  isPublished: boolean;
+  images: AdminProductImage[];
+  variants: AdminProductVariant[];
+}
