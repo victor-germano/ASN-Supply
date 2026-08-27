@@ -30,3 +30,29 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     return null;
   }
 }
+
+/** Sempre resolve (nunca lança) — a API já devolve 204 exista o e-mail ou não, mesma defesa contra enumeração de `login`. */
+export function forgotPassword(email: string): Promise<void> {
+  return apiFetch<void>('/auth/forgot-password', {
+    init: { method: 'POST', body: JSON.stringify({ email }) },
+  });
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/auth/reset-password', {
+    init: { method: 'POST', body: JSON.stringify({ token, newPassword }) },
+  });
+}
+
+export function verifyEmail(token: string): Promise<void> {
+  return apiFetch<void>('/auth/verify-email', {
+    init: { method: 'POST', body: JSON.stringify({ token }) },
+  });
+}
+
+/** Autenticado — reenviar é uma ação de quem já está logado mas ainda não confirmou (ver `EmailVerificationBanner`). */
+export function resendVerification(): Promise<void> {
+  return authenticatedFetch<void>('/auth/resend-verification', {
+    init: { method: 'POST' },
+  });
+}

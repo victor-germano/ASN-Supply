@@ -34,4 +34,13 @@ export class UsersRepository {
       },
     });
   }
+
+  updatePasswordHash(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { passwordHash } });
+  }
+
+  /** Idempotente de propósito — verificar um e-mail já verificado não é erro, só um no-op. */
+  markEmailVerified(id: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { emailVerifiedAt: new Date() } });
+  }
 }

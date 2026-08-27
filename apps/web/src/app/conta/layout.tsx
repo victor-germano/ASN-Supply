@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Container } from '@asn/ui';
 import { getCurrentUser } from '@/services/auth.service';
 import { LogoutButton } from '@/features/auth/components/LogoutButton/LogoutButton';
+import { EmailVerificationBanner } from '@/features/auth/components/EmailVerificationBanner/EmailVerificationBanner';
 
 /**
  * O middleware (`middleware.ts`, matcher `/conta/:path*`) já garante um
@@ -30,7 +31,10 @@ export default async function ContaLayout({ children }: { children: React.ReactN
           </Link>
           <LogoutButton className="text-left text-sm text-ink-muted hover:text-error" />
         </nav>
-        <div>{children}</div>
+        <div>
+          {!user.emailVerifiedAt && <EmailVerificationBanner />}
+          {children}
+        </div>
       </Container>
     </main>
   );

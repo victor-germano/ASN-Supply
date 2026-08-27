@@ -6,6 +6,8 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   avatarUrl: string | null;
+  /** `null` = ainda não confirmou o e-mail (ver `EmailVerificationBanner` em `/conta`). */
+  emailVerifiedAt: string | null;
 }
 
 export interface RegisterInput {

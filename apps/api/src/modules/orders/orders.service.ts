@@ -1,22 +1,49 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { AuthenticatedUser, Order, PaymentIntentResult } from '@asn/types';
+import type { EnvConfig } from '../../config/env.validation';
 import { OrdersRepository, type CreateOrderData } from './orders.repository';
 import { PaymentGateway } from '../payments/payment-gateway';
+import { EmailSender } from '../email/email-sender';
+import { orderConfirmationEmail } from '../email/templates';
 
 const NOT_FOUND_ERROR = {
   errorCode: 'ORDER_NOT_FOUND',
   message: 'Pedido não encontrado.',
 } as const;
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly repository: OrdersRepository,
     private readonly paymentGateway: PaymentGateway,
+    private readonly emailSender: EmailSender,
+    private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
-  create(data: CreateOrderData): Promise<Order> {
-    return this.repository.create(data);
+  async create(data: CreateOrderData): Promise<Order> {
+    const order = await this.repository.create(data);
+    // Fire-and-forget: uma falha de envio não pode derrubar uma compra que
+    // já foi commitada de verdade (estoque decrementado, pedido criado) —
+    // mesmo raciocínio do e-mail de verificação em `AuthService.register`.
+    this.sendConfirmationEmail(order).catch((error) =>
+      this.logger.error(`Falha ao enviar e-mail de confirmação do pedido ${order.code}: ${error}`),
+    );
+    return order;
+  }
+
+  private async sendConfirmationEmail(order: Order): Promise<void> {
+    const orderUrl = `${this.config.get('WEB_APP_URL', { infer: true })}/pedido/${order.id}`;
+    const { subject, html } = orderConfirmationEmail({
+      orderCode: order.code,
+      totalLabel: currencyFormatter.format(order.total.amountInCents / 100),
+      orderUrl,
+    });
+    await this.emailSender.send({ to: order.guestEmail, subject, html });
   }
 
   /**

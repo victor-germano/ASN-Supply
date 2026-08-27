@@ -4,7 +4,15 @@ import { cookies } from 'next/headers';
 import type { LoginInput, RegisterInput } from '@asn/types';
 import type { AuthenticatedUser } from '@asn/types';
 import { ApiError } from '@/services/apiClient';
-import { getCurrentUser, login, register } from '@/services/auth.service';
+import {
+  forgotPassword,
+  getCurrentUser,
+  login,
+  register,
+  resendVerification,
+  resetPassword,
+  verifyEmail,
+} from '@/services/auth.service';
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
@@ -75,4 +83,58 @@ export async function logoutAction(): Promise<void> {
  */
 export async function getCurrentUserAction(): Promise<AuthenticatedUser | null> {
   return getCurrentUser();
+}
+
+/** Sempre resolve em sucesso — nunca revela se o e-mail existe (ver `AuthService.requestPasswordReset`). */
+export async function forgotPasswordAction(email: string): Promise<void> {
+  try {
+    await forgotPassword(email);
+  } catch {
+    // Best-effort de propósito: mesmo uma falha real (rede, API fora do
+    // ar) não deve virar um erro visível diferente de "e-mail não
+    // encontrado" — o formulário sempre mostra a mesma mensagem genérica.
+  }
+}
+
+export async function resetPasswordAction(
+  token: string,
+  newPassword: string,
+): Promise<AuthActionResult> {
+  try {
+    const result = await resetPassword(token, newPassword);
+    await setSessionCookies(result.accessToken, result.refreshToken);
+    return { success: true };
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? error.message
+        : 'Não foi possível redefinir sua senha agora. Tente novamente em instantes.';
+    return { success: false, message };
+  }
+}
+
+export async function verifyEmailAction(token: string): Promise<AuthActionResult> {
+  try {
+    await verifyEmail(token);
+    return { success: true };
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? error.message
+        : 'Não foi possível confirmar seu e-mail agora. Tente novamente em instantes.';
+    return { success: false, message };
+  }
+}
+
+export async function resendVerificationAction(): Promise<AuthActionResult> {
+  try {
+    await resendVerification();
+    return { success: true };
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? error.message
+        : 'Não foi possível reenviar o e-mail agora. Tente novamente em instantes.';
+    return { success: false, message };
+  }
 }

@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
@@ -6,7 +7,12 @@ import type { AuthResponse, AuthenticatedUser } from '@asn/types';
 import { Prisma, type User } from '../../../generated/client';
 import type { EnvConfig } from '../../config/env.validation';
 import { UsersRepository } from '../users/users.repository';
+import { EmailSender } from '../email/email-sender';
+import { emailVerificationEmail, passwordResetEmail } from '../email/templates';
 import type { JwtPayload } from './jwt-payload';
+
+const PASSWORD_RESET_EXPIRES_IN = '30m';
+const EMAIL_VERIFICATION_EXPIRES_IN = '24h';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -37,10 +43,13 @@ export interface LoginInput {
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly emailSender: EmailSender,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResponse> {
@@ -59,6 +68,12 @@ export class AuthService {
         email: input.email,
         passwordHash,
       });
+      // Fire-and-forget: uma falha de envio (provedor fora do ar, chave
+      // ainda não configurada) não pode impedir o cadastro em si — o
+      // usuário sempre pode pedir reenvio depois (`requestEmailVerification`).
+      this.sendVerificationEmail(user).catch((error) =>
+        this.logger.error(`Falha ao enviar e-mail de verificação para "${user.email}": ${error}`),
+      );
       return this.issueTokenPair(toAuthenticatedUser(user));
     } catch (error) {
       // A checagem acima (`findByEmail`) e o `create` não são atômicos —
@@ -122,9 +137,96 @@ export class AuthService {
     return this.issueTokenPair(toAuthenticatedUser(user));
   }
 
-  // Genérico de propósito (assinatura inválida ou expirada) — cada
-  // chamador decide a mensagem certa para o próprio contexto depois de
-  // checar `payload.type` (ver `refresh`).
+  /**
+   * Sempre resolve em sucesso (nunca revela se o e-mail existe — mesma
+   * defesa contra enumeração de `login`, só que sem o custo de timing
+   * ali: aqui não há comparação de senha nenhuma para vazar por tempo).
+   * Sem usuário com esse e-mail, é um no-op silencioso.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.usersRepository.findByEmail(email);
+    // `!user.passwordHash` = conta só-OAuth (googleId/appleId, sem senha
+    // própria pra redefinir) — tratado como "não encontrado" pelo mesmo
+    // motivo de não revelar a existência do e-mail: não faz sentido
+    // devolver 204 só pra depois o link falhar com uma mensagem diferente.
+    if (!user || !user.passwordHash) return;
+
+    const token = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'password_reset',
+        pwv: computePasswordVersion(user.passwordHash),
+      } satisfies JwtPayload,
+      { expiresIn: PASSWORD_RESET_EXPIRES_IN },
+    );
+    const resetUrl = `${this.config.get('WEB_APP_URL', { infer: true })}/redefinir-senha?token=${token}`;
+    const { subject, html } = passwordResetEmail(resetUrl);
+    await this.emailSender.send({ to: user.email, subject, html });
+  }
+
+  /** Sucesso = sessão nova (login automático), mesma UX de acabar de logar. */
+  async resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
+    const payload = await this.verifyToken(token);
+    const user = await this.usersRepository.findById(payload.sub);
+    // `pwv` comparado contra o hash ATUAL: se a senha já foi redefinida
+    // desde que este link foi emitido, `computePasswordVersion` não bate
+    // mais — o link se invalida sozinho depois do primeiro uso real, sem
+    // precisar de uma tabela de tokens marcados como usados.
+    if (
+      payload.type !== 'password_reset' ||
+      !user ||
+      !user.passwordHash ||
+      payload.pwv !== computePasswordVersion(user.passwordHash)
+    ) {
+      throw new UnauthorizedException({
+        errorCode: 'INVALID_RESET_TOKEN',
+        message: 'Este link de redefinição é inválido ou já expirou.',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    const updated = await this.usersRepository.updatePasswordHash(user.id, passwordHash);
+    return this.issueTokenPair(toAuthenticatedUser(updated));
+  }
+
+  async requestEmailVerification(userId: string): Promise<void> {
+    const user = await this.usersRepository.findById(userId);
+    if (!user || user.emailVerifiedAt) return;
+    await this.sendVerificationEmail(user);
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const payload = await this.verifyToken(token);
+    if (payload.type !== 'email_verification') {
+      throw new UnauthorizedException({
+        errorCode: 'INVALID_VERIFICATION_TOKEN',
+        message: 'Este link de verificação é inválido ou já expirou.',
+      });
+    }
+    await this.usersRepository.markEmailVerified(payload.sub);
+  }
+
+  private async sendVerificationEmail(user: User): Promise<void> {
+    const token = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'email_verification',
+      } satisfies JwtPayload,
+      { expiresIn: EMAIL_VERIFICATION_EXPIRES_IN },
+    );
+    const verifyUrl = `${this.config.get('WEB_APP_URL', { infer: true })}/verificar-email?token=${token}`;
+    const { subject, html } = emailVerificationEmail(verifyUrl);
+    await this.emailSender.send({ to: user.email, subject, html });
+  }
+
+  // Genérico de propósito (assinatura inválida ou expirada, qualquer tipo
+  // de token) — cada chamador decide a mensagem certa para o próprio
+  // contexto depois de checar `payload.type` (ver `refresh`,
+  // `resetPassword`, `verifyEmail`).
   private async verifyToken(token: string): Promise<JwtPayload> {
     try {
       return await this.jwtService.verifyAsync<JwtPayload>(token, {
@@ -152,6 +254,11 @@ export class AuthService {
   }
 }
 
+/** Ver o comentário de `pwv` em `jwt-payload.ts` — fragmento curto, não o hash inteiro (não precisa, só precisa mudar quando a senha muda). */
+function computePasswordVersion(passwordHash: string): string {
+  return createHash('sha256').update(passwordHash).digest('hex').slice(0, 16);
+}
+
 function toAuthenticatedUser(user: User): AuthenticatedUser {
   return {
     id: user.id,
@@ -159,5 +266,6 @@ function toAuthenticatedUser(user: User): AuthenticatedUser {
     email: user.email,
     role: user.role,
     avatarUrl: user.avatarUrl,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
   };
 }

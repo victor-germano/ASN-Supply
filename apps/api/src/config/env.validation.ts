@@ -25,6 +25,17 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // E-mail transacional (reset de senha, verificação, confirmação de
+  // pedido) — ver EmailModule. Sem RESEND_API_KEY, cai no
+  // ConsoleEmailSender (loga em vez de enviar de verdade); EMAIL_FROM só
+  // importa quando a chave existe.
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('ASN Supply <onboarding@resend.dev>'),
+  // URL pública do site — usada pra montar links dentro dos e-mails
+  // (redefinir senha, confirmar e-mail, ver pedido). Independente de
+  // CORS_ALLOWED_ORIGINS (que pode ter mais de uma origem); esta é sempre
+  // uma única URL canônica.
+  WEB_APP_URL: z.string().url().default('http://localhost:3000'),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
   // LEGADO — não usada mais. O acesso administrativo agora é Role.ADMIN +
   // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário

@@ -7,6 +7,7 @@ import type { EnvConfig } from '../../config/env.validation';
 import type { User } from '../../../generated/client';
 import { AuthService } from './auth.service';
 import type { UsersRepository } from '../users/users.repository';
+import type { EmailSender } from '../email/email-sender';
 
 const JWT_SECRET = 'a-test-secret-with-at-least-32-characters';
 
@@ -18,6 +19,10 @@ function fakeConfig(): ConfigService<EnvConfig, true> {
     WEB_APP_URL: 'http://localhost:3000',
   };
   return { get: (key: string) => values[key] } as unknown as ConfigService<EnvConfig, true>;
+}
+
+function fakeEmailSender(): EmailSender {
+  return { send: vi.fn().mockResolvedValue(undefined) } as unknown as EmailSender;
 }
 
 function fakeUser(overrides: Partial<User> = {}): User {
@@ -39,7 +44,12 @@ function fakeUser(overrides: Partial<User> = {}): User {
 
 function buildService(usersRepository: Partial<UsersRepository>) {
   const jwtService = new JwtService({ secret: JWT_SECRET });
-  return new AuthService(usersRepository as UsersRepository, jwtService, fakeConfig());
+  return new AuthService(
+    usersRepository as UsersRepository,
+    jwtService,
+    fakeConfig(),
+    fakeEmailSender(),
+  );
 }
 
 describe('AuthService', () => {
@@ -61,6 +71,7 @@ describe('AuthService', () => {
         email: created.email,
         role: created.role,
         avatarUrl: created.avatarUrl,
+        emailVerifiedAt: null,
       });
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();

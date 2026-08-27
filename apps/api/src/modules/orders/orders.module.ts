@@ -5,9 +5,10 @@ import { OrdersRepository } from './orders.repository';
 import { PaymentsModule } from '../payments/payments.module';
 import { AddressesModule } from '../addresses/addresses.module';
 import { AuthModule } from '../auth/auth.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [PaymentsModule, AddressesModule, AuthModule],
+  imports: [PaymentsModule, AddressesModule, AuthModule, EmailModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersRepository],
 })
