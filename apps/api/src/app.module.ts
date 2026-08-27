@@ -19,6 +19,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
 import { AdminCatalogModule } from './modules/admin-catalog/admin-catalog.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AdminProductsModule,
     AdminCatalogModule,
     UploadsModule,
+    AdminUsersModule,
   ],
   providers: [
     {

@@ -57,3 +57,22 @@ export interface WishlistItem {
   variantId: string | null;
   addedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Painel Administrativo — clientes
+// ---------------------------------------------------------------------------
+
+/** Linha da listagem de clientes do admin — `orderCount` só pra dar contexto na lista, sem precisar abrir cada pedido. */
+export interface AdminUserListItem {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+  orderCount: number;
+}
+
+export interface UpdateUserRoleInput {
+  role: UserRole;
+}
