@@ -21,8 +21,7 @@ export async function QuestionsSection({ productId, currentSearch }: QuestionsSe
           Perguntas e Respostas
         </Heading>
         <Text size="sm" tone="muted">
-          Quer perguntar algo? <span className="text-ink underline-offset-4">Faça login</span> para
-          enviar sua pergunta.
+          Enviar perguntas direto por aqui chega em breve.
         </Text>
       </div>
 

@@ -45,8 +45,8 @@ export async function ReviewsSection({ productId, currentSearch }: ReviewsSectio
 
       {summary.reviewCount === 0 ? (
         <Text tone="muted">
-          Ainda não há avaliações para este produto — a área do cliente (em breve) vai permitir
-          avaliar compras confirmadas.
+          Ainda não há avaliações para este produto — avaliar compras confirmadas direto pela sua
+          conta chega em breve.
         </Text>
       ) : (
         <>
