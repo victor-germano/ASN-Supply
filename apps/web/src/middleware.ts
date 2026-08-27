@@ -14,11 +14,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
  * abaixo: evita a viagem de rede extra que o refresh reativo de
  * `authenticatedFetch.ts` faria em toda request depois do token expirar.
  * Só uma otimização, não a única linha de defesa — rotas fora do matcher
- * (checkout, confirmação de pedido) dependem do refresh reativo para não
- * quebrar quando o token expira no meio de uma sessão longa.
+ * (confirmação de pedido) dependem do refresh reativo para não quebrar
+ * quando o token expira no meio de uma sessão longa.
+ *
+ * `/checkout` está aqui por decisão de produto, não técnica: navegação,
+ * favoritos e carrinho continuam livres para visitante (`zustand
+ * persist` guarda o carrinho independente de sessão) — só a intenção de
+ * pagar exige conta. A API não muda por causa disso: `OrdersController`
+ * continua aceitando pedido de convidado via `OptionalJwtAuthGuard`; o
+ * gate é só do lado do site.
  */
 export const config = {
-  matcher: ['/conta/:path*'],
+  matcher: ['/conta/:path*', '/checkout'],
 };
 
 function base64UrlDecode(segment: string): string {
