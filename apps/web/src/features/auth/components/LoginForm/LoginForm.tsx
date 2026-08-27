@@ -9,6 +9,7 @@ import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
 import { loginAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
+import { SocialLoginButtons } from '../SocialLoginButtons/SocialLoginButtons';
 
 interface LoginFormValues {
   email: string;
@@ -20,6 +21,16 @@ interface LoginFormProps {
   defaultNext?: string;
   /** `/admin/entrar` esconde — criar conta não é uma ação que faça sentido oferecer ali. */
   showCreateAccountLink?: boolean;
+}
+
+// `startsWith('/')` sozinho também aceita `//evil.com` (URL
+// protocol-relative — o navegador resolve como um host externo), abrindo
+// um open redirect logo após o login. `!startsWith('//')` fecha essa
+// brecha mantendo só caminhos internos de verdade. Reaproveitado tanto
+// pelo `next` do login normal (`onSubmit`) quanto pelo `next` repassado
+// pro botão do Google (`SocialLoginButtons`) — mesma regra, duas origens.
+function isSafeInternalPath(value: string | null): value is string {
+  return !!value && value.startsWith('/') && !value.startsWith('//');
 }
 
 /**
@@ -41,6 +52,8 @@ export function LoginForm({
     handleSubmit,
     formState: { errors },
   } = useForm<LoginFormValues>({ mode: 'onBlur' });
+  const rawNext = searchParams.get('next');
+  const resolvedNext = isSafeInternalPath(rawNext) ? rawNext : defaultNext;
 
   async function onSubmit(values: LoginFormValues) {
     setSubmitError(null);
@@ -52,12 +65,6 @@ export function LoginForm({
         return;
       }
       const next = searchParams.get('next');
-      // `startsWith('/')` sozinho também aceita `//evil.com` (URL
-      // protocol-relative — o navegador resolve como um host externo),
-      // abrindo um open redirect logo após o login. `!startsWith('//')`
-      // fecha essa brecha mantendo só caminhos internos de verdade.
-      const isSafeInternalPath = (value: string | null): value is string =>
-        !!value && value.startsWith('/') && !value.startsWith('//');
       invalidateCurrentUser();
       router.push(isSafeInternalPath(next) ? next : defaultNext);
       router.refresh();
@@ -124,6 +131,8 @@ export function LoginForm({
           </Link>
         </Text>
       )}
+
+      <SocialLoginButtons next={resolvedNext} />
     </form>
   );
 }

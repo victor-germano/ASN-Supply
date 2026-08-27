@@ -10,6 +10,7 @@ import { UsersRepository } from '../users/users.repository';
 import { EmailSender } from '../email/email-sender';
 import { emailVerificationEmail, passwordResetEmail } from '../email/templates';
 import type { JwtPayload } from './jwt-payload';
+import type { GoogleProfile } from './strategies/google.strategy';
 
 const PASSWORD_RESET_EXPIRES_IN = '30m';
 const EMAIL_VERIFICATION_EXPIRES_IN = '24h';
@@ -133,6 +134,33 @@ export class AuthService {
         errorCode: 'USER_NOT_FOUND',
         message: 'Sessão expirada, faça login novamente.',
       });
+    }
+    return this.issueTokenPair(toAuthenticatedUser(user));
+  }
+
+  /**
+   * `GoogleAuthGuard`/`GoogleStrategy` já validaram a conta do Google de
+   * verdade antes disto rodar — aqui é só resolver pra qual `User` local
+   * esse `googleId` corresponde. Três casos: (1) já logou com Google antes
+   * — acha direto pelo `googleId`; (2) primeira vez, mas já existe conta
+   * com senha no mesmo e-mail — associa o `googleId` a ela em vez de criar
+   * duplicata; (3) primeira vez de verdade — cria conta nova, sem senha
+   * (`passwordHash` fica `null`, mesmo formato de "conta só-OAuth" que
+   * `login`/`requestPasswordReset` já tratam em outros pontos deste
+   * arquivo).
+   */
+  async loginWithGoogle(profile: GoogleProfile): Promise<AuthResponse> {
+    let user = await this.usersRepository.findByGoogleId(profile.googleId);
+    if (!user) {
+      const existingByEmail = await this.usersRepository.findByEmail(profile.email);
+      user = existingByEmail
+        ? await this.usersRepository.linkGoogleAccount(existingByEmail.id, profile.googleId)
+        : await this.usersRepository.createFromGoogle({
+            name: profile.name,
+            email: profile.email,
+            googleId: profile.googleId,
+            avatarUrl: profile.avatarUrl,
+          });
     }
     return this.issueTokenPair(toAuthenticatedUser(user));
   }

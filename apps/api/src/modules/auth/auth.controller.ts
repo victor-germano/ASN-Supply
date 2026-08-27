@@ -1,6 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
 import type { AuthResponse, AuthenticatedUser } from '@asn/types';
+import type { EnvConfig } from '../../config/env.validation';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -9,11 +22,16 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
+import type { GoogleProfile } from './strategies/google.strategy';
 
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(private readonly service: AuthService) {}
+  constructor(
+    private readonly service: AuthService,
+    private readonly config: ConfigService<EnvConfig, true>,
+  ) {}
 
   @Post('register')
   // Escrita pública que cria conta + hasheia senha (bcrypt é
@@ -92,5 +110,47 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   async resendVerification(@CurrentUser() user: AuthenticatedUser): Promise<void> {
     await this.service.requestEmailVerification(user.id);
+  }
+
+  /**
+   * Corpo do handler nunca roda de verdade quando as credenciais estão
+   * configuradas: `GoogleAuthGuard` (que estende `AuthGuard('google')`)
+   * já redireciona o navegador pro Google dentro de `canActivate` — é
+   * assim que toda integração Nest+Passport com uma OAuth strategy
+   * "redirect-based" funciona. Sem credenciais, o guard barra antes disso
+   * com 503 (ver `GoogleAuthGuard`).
+   */
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  googleLogin(): void {}
+
+  /**
+   * Google redireciona de volta pra cá com um código; `GoogleAuthGuard`
+   * já trocou esse código pelo perfil (`GoogleStrategy.validate`) antes
+   * do corpo deste handler rodar — chega em `req.user`, não pelo
+   * `@CurrentUser()` de sempre (que espera um `AuthenticatedUser`, não um
+   * `GoogleProfile` cru). Tokens vão pro `#fragment` da URL (nunca
+   * `?query`) porque fragmentos nunca saem do navegador — não aparecem em
+   * log de acesso do servidor nem no header `Referer` de terceiros,
+   * diferente de uma query string. `WriteReviewForm`/`LoginForm` etc. não
+   * se aplicam aqui: quem lê o fragmento e troca pelos cookies httpOnly de
+   * verdade é `/auth/google/callback` do lado da Web (Client Component,
+   * ver `apps/web`), chamando uma Server Action logo em seguida.
+   */
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  async googleCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const profile = req.user as GoogleProfile;
+    const result = await this.service.loginWithGoogle(profile);
+    const next = typeof req.query.state === 'string' ? req.query.state : '/conta/pedidos';
+
+    const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
+    const redirectUrl = new URL('/auth/google/callback', webAppUrl);
+    redirectUrl.hash = new URLSearchParams({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      next,
+    }).toString();
+    res.redirect(redirectUrl.toString());
   }
 }

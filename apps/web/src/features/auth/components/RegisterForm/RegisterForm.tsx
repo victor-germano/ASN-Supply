@@ -9,6 +9,7 @@ import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
 import { registerAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
+import { SocialLoginButtons } from '../SocialLoginButtons/SocialLoginButtons';
 
 interface RegisterFormValues {
   name: string;
@@ -110,6 +111,8 @@ export function RegisterForm() {
           Entrar
         </Link>
       </Text>
+
+      <SocialLoginButtons />
     </form>
   );
 }

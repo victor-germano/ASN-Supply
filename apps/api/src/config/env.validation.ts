@@ -13,8 +13,18 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter ao menos 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+  // Login social — mesmo padrão porta/adapter do resto do projeto: sem as
+  // duas chaves, `GoogleStrategy` nem é registrada (ver `AuthModule`) e o
+  // botão "Continuar com Google" nem aparece no site (ver `SocialLoginButtons`
+  // na web, gated por `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED`). URL de callback
+  // tem default de dev (`:3333`) — precisa bater com o que for cadastrado
+  // no Google Cloud Console em produção.
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_CALLBACK_URL: z
+    .string()
+    .url()
+    .default('http://localhost:3333/v1/auth/google/callback'),
   APPLE_OAUTH_CLIENT_ID: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),

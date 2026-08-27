@@ -126,6 +126,21 @@ export async function verifyEmailAction(token: string): Promise<AuthActionResult
   }
 }
 
+/**
+ * Chamada por `/auth/google/callback` (Client Component) logo depois de ler
+ * `accessToken`/`refreshToken` do `#fragment` da URL — nunca do lado do
+ * servidor (o fragmento nunca chega até aqui sozinho, só o navegador o
+ * lê). É só isso: os tokens já foram emitidos de verdade pela API
+ * (`AuthController.googleCallback`), esta Server Action só os transforma
+ * em cookies httpOnly, mesmo passo final de `loginAction`/`registerAction`.
+ */
+export async function completeGoogleLoginAction(
+  accessToken: string,
+  refreshToken: string,
+): Promise<void> {
+  await setSessionCookies(accessToken, refreshToken);
+}
+
 export async function resendVerificationAction(): Promise<AuthActionResult> {
   try {
     await resendVerification();

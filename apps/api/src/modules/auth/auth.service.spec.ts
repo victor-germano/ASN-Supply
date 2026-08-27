@@ -128,7 +128,7 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('rejeita usuário sem senha (cadastrado só via OAuth, ainda não suportado)', async () => {
+    it('rejeita usuário sem senha (cadastrado só via Google — sem senha própria pra comparar)', async () => {
       const service = buildService({
         findByEmail: vi.fn().mockResolvedValue(fakeUser({ passwordHash: null })),
       });
@@ -136,6 +136,73 @@ describe('AuthService', () => {
       await expect(
         service.login({ email: 'camila@example.com', password: 'qualquer' }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    const profile = {
+      googleId: 'google-123',
+      email: 'camila@example.com',
+      name: 'Camila Rocha',
+      avatarUrl: 'https://example.com/avatar.png',
+    };
+
+    it('acha direto pelo googleId quando já logou com Google antes', async () => {
+      const user = fakeUser({ googleId: profile.googleId });
+      const findByEmail = vi.fn();
+      const service = buildService({
+        findByGoogleId: vi.fn().mockResolvedValue(user),
+        findByEmail,
+      });
+
+      const result = await service.loginWithGoogle(profile);
+
+      expect(result.user.id).toBe(user.id);
+      expect(findByEmail).not.toHaveBeenCalled();
+    });
+
+    it('associa a conta existente (mesmo e-mail, cadastrada com senha) em vez de criar duplicata', async () => {
+      const existing = fakeUser({ googleId: null, passwordHash: 'hash-qualquer' });
+      const linked = fakeUser({ googleId: profile.googleId, emailVerifiedAt: new Date() });
+      const linkGoogleAccount = vi.fn().mockResolvedValue(linked);
+      const createFromGoogle = vi.fn();
+      const service = buildService({
+        findByGoogleId: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(existing),
+        linkGoogleAccount,
+        createFromGoogle,
+      });
+
+      const result = await service.loginWithGoogle(profile);
+
+      expect(linkGoogleAccount).toHaveBeenCalledWith(existing.id, profile.googleId);
+      expect(createFromGoogle).not.toHaveBeenCalled();
+      expect(result.user.id).toBe(linked.id);
+    });
+
+    it('cria uma conta nova (sem senha) quando não existe nem por googleId nem por e-mail', async () => {
+      const created = fakeUser({
+        googleId: profile.googleId,
+        passwordHash: null,
+        emailVerifiedAt: new Date(),
+      });
+      const createFromGoogle = vi.fn().mockResolvedValue(created);
+      const service = buildService({
+        findByGoogleId: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        createFromGoogle,
+      });
+
+      const result = await service.loginWithGoogle(profile);
+
+      expect(createFromGoogle).toHaveBeenCalledWith({
+        name: profile.name,
+        email: profile.email,
+        googleId: profile.googleId,
+        avatarUrl: profile.avatarUrl,
+      });
+      expect(result.user.id).toBe(created.id);
+      expect(result.accessToken).toBeTruthy();
     });
   });
 
