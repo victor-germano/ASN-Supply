@@ -5,10 +5,12 @@ import {
   IsArray,
   IsEmail,
   IsIn,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import type { ShippingMethod } from '@asn/types';
@@ -25,6 +27,10 @@ export class CreateOrderDto {
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
 
+  // guestName/guestEmail/guestPhone continuam obrigatórios sempre, convidado
+  // ou autenticado (decisão deliberada — ver comentário em
+  // orders.repository.ts): mantém este DTO puramente aditivo e evita
+  // qualquer mudança de shape no adapter de pagamento (Fase 4).
   @IsString()
   @MinLength(2)
   @MaxLength(120)
@@ -38,9 +44,18 @@ export class CreateOrderDto {
   @Matches(/^\+?\d{10,15}$/, { message: 'Informe um telefone válido, com DDD.' })
   guestPhone!: string;
 
+  // Um dos dois, nunca os dois: endereço salvo (cliente autenticado) OU
+  // endereço digitado na hora (convidado ou autenticado sem endereço
+  // salvo). `addressId` só é aceito com login — o controller injeta
+  // `userId` a partir do JWT, nunca do body.
+  @IsOptional()
+  @IsString()
+  addressId?: string;
+
+  @ValidateIf((dto: CreateOrderDto) => !dto.addressId)
   @ValidateNested()
   @Type(() => ShippingAddressDto)
-  shippingAddress!: ShippingAddressDto;
+  shippingAddress?: ShippingAddressDto;
 
   @IsIn(SHIPPING_METHODS)
   shippingMethod!: ShippingMethod;

@@ -181,6 +181,22 @@ export function HeartIcon({ filled, ...props }: SVGProps<SVGSVGElement> & { fill
   );
 }
 
+export function UserIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20c1.5-4 5-6 7.5-6s6 2 7.5 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function ShareIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

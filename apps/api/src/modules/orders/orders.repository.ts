@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../../generated/client';
 import type { CreateOrderItemInput, Order, OrderItem, ShippingMethod } from '@asn/types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,6 +11,7 @@ import { toMoney } from '../../common/money.mapper';
 import { calculateShippingCostInCents } from './shipping';
 import { generateOrderCode } from './order-code';
 import type { ShippingAddressDto } from './dto/shipping-address.dto';
+import { AddressesRepository } from '../addresses/addresses.repository';
 
 const orderInclude = {
   items: true,
@@ -18,16 +24,27 @@ export interface CreateOrderData {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  /** Vem do JWT (nunca do body) — `undefined` em checkout convidado. */
+  userId?: string;
+  /**
+   * Endereço salvo do cliente autenticado — alternativa a `shippingAddress`.
+   * Resolvido (e sua posse conferida) em `resolveShippingAddress` antes de
+   * qualquer coisa ser persistida.
+   */
+  addressId?: string;
   // Tipo do DTO (não o `ShippingAddress` de @asn/types): `complement` chega
   // opcional/ausente do request, mas é armazenado/retornado como `string |
   // null` — formas diferentes de expressar "sem complemento" em cada ponta.
-  shippingAddress: ShippingAddressDto;
+  shippingAddress?: ShippingAddressDto;
   shippingMethod: ShippingMethod;
 }
 
 @Injectable()
 export class OrdersRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly addressesRepository: AddressesRepository,
+  ) {}
 
   /**
    * Cria o pedido revalidando tudo no servidor: o client manda só
@@ -48,16 +65,25 @@ export class OrdersRepository {
     }
     const variantIds = Array.from(quantityByVariantId.keys());
 
-    const variants = await this.prisma.productVariant.findMany({
-      where: { id: { in: variantIds } },
-      include: {
-        product: {
-          include: {
-            images: { where: { is360Frame: false }, orderBy: { position: 'asc' }, take: 1 },
+    // As duas buscas não dependem uma da outra — em paralelo em vez de
+    // sequencial economiza uma volta inteira de rede ao banco no caminho
+    // mais sensível a latência do checkout.
+    const [variants, shippingAddress] = await Promise.all([
+      this.prisma.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        include: {
+          product: {
+            include: {
+              images: { where: { is360Frame: false }, orderBy: { position: 'asc' }, take: 1 },
+            },
           },
         },
-      },
-    });
+      }),
+      // Resolvida em paralelo com os itens: se o endereço salvo não
+      // existir/não for do usuário, o Promise.all rejeita e falha rápido
+      // antes de a transação chegar a decrementar estoque.
+      this.resolveShippingAddress(data),
+    ]);
 
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const missingIds = variantIds.filter((id) => !variantById.has(id));
@@ -163,17 +189,19 @@ export class OrdersRepository {
       return tx.order.create({
         data: {
           code: orderCode,
+          userId: data.userId ?? null,
+          addressId: data.addressId ?? null,
           guestName: data.guestName.trim(),
           guestEmail: data.guestEmail.trim().toLowerCase(),
           guestPhone: data.guestPhone.trim(),
-          shippingRecipientName: data.shippingAddress.recipientName.trim(),
-          shippingStreet: data.shippingAddress.street.trim(),
-          shippingNumber: data.shippingAddress.number.trim(),
-          shippingComplement: data.shippingAddress.complement?.trim() || null,
-          shippingNeighborhood: data.shippingAddress.neighborhood.trim(),
-          shippingCity: data.shippingAddress.city.trim(),
-          shippingState: data.shippingAddress.state.trim().toUpperCase(),
-          shippingZipCode: data.shippingAddress.zipCode.trim(),
+          shippingRecipientName: shippingAddress.recipientName.trim(),
+          shippingStreet: shippingAddress.street.trim(),
+          shippingNumber: shippingAddress.number.trim(),
+          shippingComplement: shippingAddress.complement?.trim() || null,
+          shippingNeighborhood: shippingAddress.neighborhood.trim(),
+          shippingCity: shippingAddress.city.trim(),
+          shippingState: shippingAddress.state.trim().toUpperCase(),
+          shippingZipCode: shippingAddress.zipCode.trim(),
           shippingMethod: data.shippingMethod,
           subtotalInCents,
           shippingCostInCents,
@@ -212,9 +240,81 @@ export class OrdersRepository {
     }
   }
 
-  async findById(id: string): Promise<Order | null> {
+  /**
+   * Pedido completo + o `userId` cru (não exposto em `Order`) numa única
+   * consulta — usado pelo `OrdersService` tanto para a checagem de posse
+   * quanto para montar a resposta, sem precisar de duas idas ao banco para
+   * o mesmo request (o `userId` já vem de graça no mesmo `findUnique`;
+   * antes disso eram duas queries sequenciais para responder uma coisa só).
+   * `null` = pedido não existe.
+   */
+  async findByIdWithOwner(id: string): Promise<{ order: Order; ownerId: string | null } | null> {
     const order = await this.prisma.order.findUnique({ where: { id }, include: orderInclude });
-    return order ? toOrder(order) : null;
+    return order ? { order: toOrder(order), ownerId: order.userId } : null;
+  }
+
+  async findManyByUserId(userId: string): Promise<Order[]> {
+    const orders = await this.prisma.order.findMany({
+      where: { userId },
+      include: orderInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+    return orders.map(toOrder);
+  }
+
+  /**
+   * Um dos dois, nunca os dois. `CreateOrderDto`'s `@ValidateIf` só evita
+   * validar o *formato* de `shippingAddress` quando `addressId` está
+   * presente — não impede o client de mandar os dois campos preenchidos ao
+   * mesmo tempo. Sem esta checagem aqui, um `shippingAddress` digitado de
+   * propósito seria descartado silenciosamente em favor do `addressId`
+   * (possivelmente obsoleto) que o client também mandou — em vez disso,
+   * rejeitamos explicitamente para o client corrigir o request.
+   */
+  private async resolveShippingAddress(data: CreateOrderData): Promise<ShippingAddressDto> {
+    if (data.addressId && data.shippingAddress) {
+      throw new BadRequestException({
+        errorCode: 'AMBIGUOUS_SHIPPING_ADDRESS',
+        message: 'Informe apenas um endereço de entrega: salvo ou digitado, não os dois.',
+      });
+    }
+
+    if (data.addressId) {
+      if (!data.userId) {
+        throw new BadRequestException({
+          errorCode: 'ADDRESS_REQUIRES_AUTH',
+          message: 'Endereço salvo requer login.',
+        });
+      }
+      // Escopado ao usuário — nunca busca só por id (proteção IDOR: um
+      // convidado ou outro usuário não consegue usar o addressId de
+      // terceiros só por adivinhar o cuid).
+      const address = await this.addressesRepository.findOneForUser(data.addressId, data.userId);
+      if (!address) {
+        throw new NotFoundException({
+          errorCode: 'ADDRESS_NOT_FOUND',
+          message: 'Endereço não encontrado.',
+        });
+      }
+      return {
+        recipientName: address.recipientName,
+        street: address.street,
+        number: address.number,
+        complement: address.complement ?? undefined,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        zipCode: address.zipCode,
+      };
+    }
+
+    if (!data.shippingAddress) {
+      throw new BadRequestException({
+        errorCode: 'SHIPPING_ADDRESS_REQUIRED',
+        message: 'Informe o endereço de entrega.',
+      });
+    }
+    return data.shippingAddress;
   }
 }
 

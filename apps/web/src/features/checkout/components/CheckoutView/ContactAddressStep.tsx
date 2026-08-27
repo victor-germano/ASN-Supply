@@ -1,8 +1,8 @@
 import type { UseFormRegister, FieldErrors } from 'react-hook-form';
 import { Heading, Text } from '@asn/ui';
 import type { CheckoutFormValues } from './CheckoutFormValues';
-import { inputClassName, labelClassName } from './formStyles';
-import { FieldErrorText } from './FieldErrorText';
+import { inputClassName, labelClassName } from '@/components/form/formStyles';
+import { FieldErrorText } from '@/components/form/FieldErrorText';
 
 interface ContactAddressStepProps {
   register: UseFormRegister<CheckoutFormValues>;
@@ -10,9 +10,12 @@ interface ContactAddressStepProps {
 }
 
 /**
- * Checkout como convidado (Módulo 4 — Área do Cliente/login ainda não
- * existe): pede contato + endereço de entrega direto no formulário, sem
- * exigir conta nem oferecer "endereços salvos".
+ * Pede contato + endereço de entrega direto no formulário. Convidado e
+ * autenticado passam pelo mesmo passo hoje — a API já aceita um
+ * `addressId` de endereço salvo em vez do endereço digitado (Área do
+ * Cliente), mas escolher um endereço salvo direto no checkout ainda não
+ * tem UI própria; fica como fast-follow natural sobre o CRUD de endereços
+ * já disponível em /conta/enderecos.
  */
 export function ContactAddressStep({ register, errors }: ContactAddressStepProps) {
   return (

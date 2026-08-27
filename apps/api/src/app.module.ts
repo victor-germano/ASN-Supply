@@ -11,6 +11,9 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { TryOnModule } from './modules/tryon/tryon.module';
+import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { TryOnModule } from './modules/tryon/tryon.module';
     OrdersModule,
     AdminModule,
     TryOnModule,
+    UsersModule,
+    AuthModule,
+    AddressesModule,
   ],
   providers: [
     {

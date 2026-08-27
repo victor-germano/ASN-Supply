@@ -83,7 +83,13 @@ export interface CreateOrderInput {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
-  shippingAddress: ShippingAddress;
+  /**
+   * Endereço salvo do cliente autenticado (Módulo 5) — quando presente, o
+   * servidor busca o `Address` (escopado ao próprio usuário) e denormaliza
+   * os campos no pedido; alternativa a `shippingAddress`, nunca as duas.
+   */
+  addressId?: string;
+  shippingAddress?: ShippingAddress;
   shippingMethod: ShippingMethod;
 }
 

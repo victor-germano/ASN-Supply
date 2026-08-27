@@ -8,6 +8,33 @@ export interface AuthenticatedUser {
   avatarUrl: string | null;
 }
 
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface RefreshInput {
+  refreshToken: string;
+}
+
+/**
+ * Resposta de /auth/register, /auth/login e /auth/refresh — trafega só
+ * entre o Server Action do Next e a API (fetch servidor-servidor); o
+ * browser nunca vê `accessToken`/`refreshToken` diretamente, só os
+ * cookies httpOnly que o Server Action seta a partir daqui.
+ */
+export interface AuthResponse {
+  user: AuthenticatedUser;
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface Review {
   id: string;
   productId: string;

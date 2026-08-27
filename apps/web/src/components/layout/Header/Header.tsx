@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Container } from '@asn/ui';
 import { CartButton } from './CartButton';
 import { WishlistButton } from './WishlistButton';
+import { AccountButton } from './AccountButton';
 import { MobileMenu } from './MobileMenu';
 import { NAV_LINKS } from './navLinks';
 
@@ -47,6 +48,7 @@ export function Header() {
         </Link>
 
         <div className="flex items-center">
+          <AccountButton />
           <WishlistButton />
           <CartButton />
         </div>
