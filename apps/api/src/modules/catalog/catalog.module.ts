@@ -3,6 +3,7 @@ import { BannersController } from './banners/banners.controller';
 import { BannersRepository } from './banners/banners.repository';
 import { ProductsController } from './products/products.controller';
 import { ProductsRepository } from './products/products.repository';
+import { AiSearchService } from './products/ai-search.service';
 import { CollectionsController } from './collections/collections.controller';
 import { CollectionsRepository } from './collections/collections.repository';
 import { CategoriesController } from './categories/categories.controller';
@@ -36,6 +37,7 @@ import { QuestionsRepository } from './questions/questions.repository';
   providers: [
     BannersRepository,
     ProductsRepository,
+    AiSearchService,
     CollectionsRepository,
     CategoriesRepository,
     BrandsRepository,

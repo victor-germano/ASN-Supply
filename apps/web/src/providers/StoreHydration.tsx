@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { useWishlistStore } from '@/stores/wishlistStore';
 import { useRecentlyViewedStore } from '@/stores/recentlyViewedStore';
+import { useCompareStore } from '@/stores/compareStore';
 
 /**
  * Reidrata as stores persistidas (Zustand + localStorage) manualmente, num
@@ -17,6 +18,7 @@ export function StoreHydration() {
     useCartStore.persist.rehydrate();
     useWishlistStore.persist.rehydrate();
     useRecentlyViewedStore.persist.rehydrate();
+    useCompareStore.persist.rehydrate();
   }, []);
 
   return null;

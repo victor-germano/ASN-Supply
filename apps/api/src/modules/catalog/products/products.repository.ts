@@ -261,6 +261,41 @@ export class ProductsRepository {
       .map(toProductSummary);
   }
 
+  /** Resumo enxuto (sem imagens/variantes) de todo o catálogo publicado — usado só para montar o prompt da busca por IA (`AiSearchService`), nunca exposto direto numa resposta HTTP. */
+  async findCatalogSummaryForAi(): Promise<
+    {
+      id: string;
+      name: string;
+      brandName: string;
+      categoryName: string;
+      description: string;
+      materials: string[];
+      technologies: string[];
+    }[]
+  > {
+    const products = await this.prisma.product.findMany({
+      where: { isPublished: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        materials: true,
+        technologies: true,
+        brand: { select: { name: true } },
+        category: { select: { name: true } },
+      },
+    });
+    return products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      brandName: product.brand.name,
+      categoryName: product.category.name,
+      description: product.description,
+      materials: product.materials,
+      technologies: product.technologies,
+    }));
+  }
+
   private buildWhere(filters: ProductFilters): Prisma.ProductWhereInput {
     // `images: { some: { is360Frame: false } }` garante que a contagem usada para paginar
     // (totalItems/totalPages) e os itens de fato retornados nunca

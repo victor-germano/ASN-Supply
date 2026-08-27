@@ -1,4 +1,5 @@
 import type {
+  AiSearchResult,
   Banner,
   Brand,
   Category,
@@ -69,6 +70,13 @@ export function searchProducts(
     // Não cacheado: cada combinação de filtros é uma URL diferente e a
     // listagem precisa refletir estoque/preço com a menor defasagem
     // possível — o custo de recomputar é baixo (é uma query indexada).
+  });
+}
+
+/** "Busca por IA" (Módulo 8) — não cacheado, cada busca é uma consulta nova. */
+export function aiSearchProducts(query: string): Promise<AiSearchResult> {
+  return apiFetch<AiSearchResult>('/products/ai-search', {
+    init: { method: 'POST', body: JSON.stringify({ query }) },
   });
 }
 

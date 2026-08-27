@@ -7,6 +7,7 @@ import { CartSync } from '@/features/cart/components/CartSync/CartSync';
 import { Header } from '@/components/layout/Header/Header';
 import { Footer } from '@/components/layout/Footer/Footer';
 import { Analytics } from '@/components/Analytics';
+import { CompareBar } from '@/features/compare/components/CompareBar/CompareBar';
 import './globals.css';
 
 const displayFont = Cormorant_Garamond({
@@ -71,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Footer />
         </QueryProvider>
+        <CompareBar />
         <Analytics />
       </body>
     </html>

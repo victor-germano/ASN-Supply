@@ -5,7 +5,8 @@ import { Button, Text } from '@asn/ui';
 import type { ProductDetail } from '@asn/types';
 import { useCartStore } from '@/stores/cartStore';
 import { useWishlistStore } from '@/stores/wishlistStore';
-import { HeartIcon, ShareIcon } from '@/components/icons';
+import { useCompareStore, MAX_COMPARE_ITEMS } from '@/stores/compareStore';
+import { CompareIcon, HeartIcon, ShareIcon } from '@/components/icons';
 
 export function ProductActions({ product }: { product: ProductDetail }) {
   const colors = useMemo(() => {
@@ -30,6 +31,10 @@ export function ProductActions({ product }: { product: ProductDetail }) {
   const addItem = useCartStore((state) => state.addItem);
   const isFavorited = useWishlistStore((state) => state.productIds.includes(product.id));
   const toggleWishlist = useWishlistStore((state) => state.toggle);
+  const isComparing = useCompareStore((state) => state.isComparing(product.id));
+  const compareCount = useCompareStore((state) => state.items.length);
+  const toggleCompare = useCompareStore((state) => state.toggle);
+  const compareAtLimit = !isComparing && compareCount >= MAX_COMPARE_ITEMS;
 
   function handleAddToCart() {
     if (!selectedVariant) {
@@ -152,6 +157,21 @@ export function ProductActions({ product }: { product: ProductDetail }) {
           className="flex h-14 w-14 shrink-0 items-center justify-center border border-ink/15 text-ink hover:border-ink"
         >
           <ShareIcon className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          disabled={compareAtLimit}
+          onClick={() => toggleCompare({ id: product.id, slug: product.slug, name: product.name })}
+          aria-label={isComparing ? 'Remover da comparação' : 'Adicionar à comparação'}
+          aria-pressed={isComparing}
+          title={compareAtLimit ? `Máximo de ${MAX_COMPARE_ITEMS} produtos` : undefined}
+          className={`flex h-14 w-14 shrink-0 items-center justify-center border transition-colors ${
+            isComparing
+              ? 'border-ink bg-ink text-white'
+              : 'border-ink/15 text-ink hover:border-ink disabled:cursor-not-allowed disabled:opacity-40'
+          }`}
+        >
+          <CompareIcon className="h-5 w-5" />
         </button>
       </div>
 

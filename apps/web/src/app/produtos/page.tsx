@@ -52,6 +52,7 @@ export default async function ProdutosPage({ searchParams }: ProdutosPageProps) 
           filters={filters}
           currentSearch={currentSearch}
           emptyStateHref="/produtos"
+          showAiSearch
         />
       </Container>
     </main>

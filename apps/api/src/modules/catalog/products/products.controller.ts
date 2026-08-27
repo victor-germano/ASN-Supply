@@ -1,5 +1,7 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type {
+  AiSearchResult,
   LookItem,
   PaginatedResult,
   ProductDetail,
@@ -7,14 +9,19 @@ import type {
   ProductSummary,
 } from '@asn/types';
 import { ProductsRepository } from './products.repository';
+import { AiSearchService } from './ai-search.service';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { SearchProductsQueryDto } from './dto/search-products.query.dto';
 import { ByIdsQueryDto } from './dto/by-ids.query.dto';
 import { RelatedProductsQueryDto } from './dto/related-products.query.dto';
+import { AiSearchDto } from './dto/ai-search.dto';
 
 @Controller({ path: 'products', version: '1' })
 export class ProductsController {
-  constructor(private readonly repository: ProductsRepository) {}
+  constructor(
+    private readonly repository: ProductsRepository,
+    private readonly aiSearchService: AiSearchService,
+  ) {}
 
   /** Vitrine curta usada pela Home (Lançamentos/Mais Vendidos) — sem filtros nem paginação. */
   @Get()
@@ -33,6 +40,17 @@ export class ProductsController {
   @Get('facets')
   getFacets(): Promise<ProductFacets> {
     return this.repository.getFacets();
+  }
+
+  /**
+   * "Busca por IA" (Módulo 8) — POST (não GET) porque manda o catálogo
+   * inteiro num prompt do lado do servidor a cada chamada (custo real de
+   * IA), então throttle mais restrito que uma busca textual comum.
+   */
+  @Post('ai-search')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  aiSearch(@Body() dto: AiSearchDto): Promise<AiSearchResult> {
+    return this.aiSearchService.search(dto.query);
   }
 
   /**
