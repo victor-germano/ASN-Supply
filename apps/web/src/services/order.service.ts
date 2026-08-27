@@ -1,4 +1,11 @@
-import type { CreateOrderInput, Order, PaymentIntentResult } from '@asn/types';
+import type {
+  CreateOrderInput,
+  Order,
+  OrderStatus,
+  PaginatedResult,
+  PaymentIntentResult,
+  UpdateOrderInput,
+} from '@asn/types';
 import { apiFetch } from './apiClient';
 import { authenticatedFetch } from './authenticatedFetch';
 
@@ -30,5 +37,22 @@ export function getMyOrders(): Promise<Order[]> {
 export function getPaymentIntent(orderId: string): Promise<PaymentIntentResult> {
   return apiFetch<PaymentIntentResult>(`/orders/${orderId}/payment-intent`, {
     init: { method: 'POST' },
+  });
+}
+
+/** Admin — todos os pedidos, não só os do usuário autenticado (ver `RolesGuard` na API). */
+export function getAdminOrders(params: {
+  page: number;
+  pageSize: number;
+  status?: OrderStatus;
+}): Promise<PaginatedResult<Order>> {
+  return authenticatedFetch<PaginatedResult<Order>>('/orders/admin/list', {
+    searchParams: { page: params.page, pageSize: params.pageSize, status: params.status },
+  });
+}
+
+export function updateAdminOrder(id: string, input: UpdateOrderInput): Promise<Order> {
+  return authenticatedFetch<Order>(`/orders/${id}`, {
+    init: { method: 'PATCH', body: JSON.stringify(input) },
   });
 }

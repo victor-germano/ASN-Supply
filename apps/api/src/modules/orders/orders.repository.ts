@@ -5,7 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../generated/client';
-import type { CreateOrderItemInput, Order, OrderItem, ShippingMethod } from '@asn/types';
+import type {
+  CreateOrderItemInput,
+  Order,
+  OrderItem,
+  OrderStatus,
+  PaginatedResult,
+  ShippingMethod,
+  UpdateOrderInput,
+} from '@asn/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { toMoney } from '../../common/money.mapper';
 import { calculateShippingCostInCents } from './shipping';
@@ -303,6 +311,53 @@ export class OrdersRepository {
     return orders.map(toOrder);
   }
 
+  /** Painel Admin — todos os pedidos, não só os de um usuário; filtro opcional por status. */
+  async findAllForAdmin(params: {
+    page: number;
+    pageSize: number;
+    status?: OrderStatus;
+  }): Promise<PaginatedResult<Order>> {
+    const where: Prisma.OrderWhereInput = params.status ? { status: params.status } : {};
+    const [items, totalItems] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        include: orderInclude,
+        orderBy: { createdAt: 'desc' },
+        skip: (params.page - 1) * params.pageSize,
+        take: params.pageSize,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return {
+      items: items.map(toOrder),
+      page: params.page,
+      pageSize: params.pageSize,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / params.pageSize)),
+    };
+  }
+
+  /**
+   * Usado pelo painel admin — atualização de status + rastreio (mesmo
+   * método, comentado como "Fase 3" desde o Módulo 4, agora estendido).
+   * `trackingCode`/`trackingUrl` só substituem o valor atual quando o
+   * campo vem definido no input (`!== undefined`) — `PATCH` parcial de
+   * verdade, não um `PUT` disfarçado que apagaria o rastreio já salvo se
+   * o admin mandar só `{ status: 'DELIVERED' }`.
+   */
+  async updateForAdmin(id: string, input: UpdateOrderInput): Promise<Order> {
+    const order = await this.prisma.order.update({
+      where: { id },
+      data: {
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.trackingCode !== undefined && { trackingCode: input.trackingCode }),
+        ...(input.trackingUrl !== undefined && { trackingUrl: input.trackingUrl }),
+      },
+      include: orderInclude,
+    });
+    return toOrder(order);
+  }
+
   /**
    * Um dos dois, nunca os dois. `CreateOrderDto`'s `@ValidateIf` só evita
    * validar o *formato* de `shippingAddress` quando `addressId` está
@@ -386,6 +441,8 @@ function toOrder(order: OrderWithRelations): Order {
     installments: order.installments,
     createdAt: order.createdAt.toISOString(),
     estimatedDeliveryAt: order.estimatedDeliveryAt?.toISOString() ?? null,
+    trackingCode: order.trackingCode,
+    trackingUrl: order.trackingUrl,
   };
 }
 

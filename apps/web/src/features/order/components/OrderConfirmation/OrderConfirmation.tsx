@@ -132,6 +132,29 @@ export function OrderConfirmation({
               <Text size="sm" className="mt-2">
                 {SHIPPING_METHOD_LABEL[order.shippingMethod]}
               </Text>
+              {order.trackingCode && (
+                <div className="mt-4 border-t border-ink/10 pt-4">
+                  <Text
+                    size="xs"
+                    weight="semibold"
+                    className="mb-1 uppercase tracking-wider text-ink-muted"
+                  >
+                    Rastreio
+                  </Text>
+                  {order.trackingUrl ? (
+                    <a
+                      href={order.trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-ink underline underline-offset-4"
+                    >
+                      {order.trackingCode}
+                    </a>
+                  ) : (
+                    <Text size="sm">{order.trackingCode}</Text>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="border border-ink/10 p-6">

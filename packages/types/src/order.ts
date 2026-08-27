@@ -64,6 +64,9 @@ export interface Order {
   installments: number;
   createdAt: string;
   estimatedDeliveryAt: string | null;
+  /** Preenchidos manualmente pelo admin — `null` até o pedido ser marcado como enviado (ver Painel Admin). */
+  trackingCode: string | null;
+  trackingUrl: string | null;
 }
 
 /**
@@ -99,6 +102,13 @@ export interface CreateOrderInput {
 export interface CouponPreview {
   code: string;
   discountInCents: number;
+}
+
+/** Painel Admin — atualização de status + rastreio (`PATCH /orders/:id`, `@Roles('ADMIN')`). */
+export interface UpdateOrderInput {
+  status?: OrderStatus;
+  trackingCode?: string;
+  trackingUrl?: string;
 }
 
 /**

@@ -449,6 +449,13 @@ model Order {
   installments       Int           @default(1)
   createdAt          DateTime      @default(now())
   estimatedDeliveryAt DateTime?
+  // Rastreio — preenchido manualmente pelo admin (Painel Admin, Módulo 6);
+  // sem integração com transportadora real ainda (nenhuma API de Correios/
+  // Melhor Envio configurada), mesmo espírito de `calculateShippingCostInCents`
+  // (tabela fixa) e `NullPaymentGateway`: base pronta, integração real depois
+  // troca só o adapter, não o schema nem o resto do fluxo.
+  trackingCode       String?
+  trackingUrl        String?
 
   items              OrderItem[]
   payment            Payment?
