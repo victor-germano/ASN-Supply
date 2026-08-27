@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { CartModule } from './modules/cart/cart.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { CartModule } from './modules/cart/cart.module';
     AddressesModule,
     WishlistModule,
     CartModule,
+    CouponsModule,
   ],
   providers: [
     {

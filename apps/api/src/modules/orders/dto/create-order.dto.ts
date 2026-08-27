@@ -59,4 +59,11 @@ export class CreateOrderDto {
 
   @IsIn(SHIPPING_METHODS)
   shippingMethod!: ShippingMethod;
+
+  // Revalidado do zero dentro da transação de `OrdersRepository.create`
+  // (regras de `validateCoupon`) — nunca confia no desconto calculado no
+  // navegador a partir do preview de `POST /coupons/validate`.
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
 }

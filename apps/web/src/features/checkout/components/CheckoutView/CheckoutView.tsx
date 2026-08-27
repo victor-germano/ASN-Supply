@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import type { CouponPreview } from '@asn/types';
 import { Button, Container, Heading, buttonStyles } from '@asn/ui';
 import Link from 'next/link';
 import { useCartStore } from '@/stores/cartStore';
@@ -25,6 +26,7 @@ export function CheckoutView() {
   const [step, setStep] = useState<CheckoutStep>('contato');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null);
 
   const {
     register,
@@ -96,6 +98,7 @@ export function CheckoutView() {
           zipCode: values.zipCode,
         },
         shippingMethod: values.shippingMethod,
+        couponCode: appliedCoupon?.code,
       });
 
       if (!result.success) {
@@ -165,7 +168,12 @@ export function CheckoutView() {
             )}
           </div>
 
-          <OrderSummary items={items} shippingCostInCents={shippingCostInCents} />
+          <OrderSummary
+            items={items}
+            shippingCostInCents={shippingCostInCents}
+            appliedCoupon={appliedCoupon}
+            onCouponChange={setAppliedCoupon}
+          />
         </div>
       </Container>
     </main>

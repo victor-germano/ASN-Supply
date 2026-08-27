@@ -91,6 +91,14 @@ export interface CreateOrderInput {
   addressId?: string;
   shippingAddress?: ShippingAddress;
   shippingMethod: ShippingMethod;
+  /** Código de um cupom validado no preview (`POST /coupons/validate`) — reaplicado e revalidado atomicamente na hora de confirmar o pedido, nunca confia no desconto calculado no navegador. */
+  couponCode?: string;
+}
+
+/** Resultado de `POST /coupons/validate` — só um preview, não gasta o uso do cupom. */
+export interface CouponPreview {
+  code: string;
+  discountInCents: number;
 }
 
 /**

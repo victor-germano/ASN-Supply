@@ -12,6 +12,7 @@ import { calculateShippingCostInCents } from './shipping';
 import { generateOrderCode } from './order-code';
 import type { ShippingAddressDto } from './dto/shipping-address.dto';
 import { AddressesRepository } from '../addresses/addresses.repository';
+import { calculateCouponDiscountInCents, validateCoupon } from './coupon';
 
 const orderInclude = {
   items: true,
@@ -37,6 +38,7 @@ export interface CreateOrderData {
   // null` — formas diferentes de expressar "sem complemento" em cada ponta.
   shippingAddress?: ShippingAddressDto;
   shippingMethod: ShippingMethod;
+  couponCode?: string;
 }
 
 @Injectable()
@@ -184,7 +186,45 @@ export class OrdersRepository {
         data.shippingMethod,
         subtotalInCents,
       );
-      const totalInCents = subtotalInCents + shippingCostInCents;
+
+      // Aplicação real do cupom (conta como uso, diferente do preview em
+      // `CouponsService.preview`) — lido e revalidado do zero AQUI DENTRO
+      // da transação, nunca a partir do que o navegador mandou calculado:
+      // um client adulterado que mande `couponCode` de um cupom esgotado
+      // ou `discountInCents` inventado não consegue nada, porque o valor
+      // usado é sempre o recém-calculado a partir do cupom lido agora.
+      let couponId: string | null = null;
+      let discountInCents = 0;
+      if (data.couponCode) {
+        const coupon = await tx.coupon.findFirst({
+          where: { code: data.couponCode.trim().toUpperCase() },
+        });
+        const error = validateCoupon(coupon, subtotalInCents);
+        if (error) {
+          throw new BadRequestException(error);
+        }
+        couponId = coupon!.id;
+        discountInCents = calculateCouponDiscountInCents(coupon!, subtotalInCents);
+        // Incremento condicional (mesmo padrão do decremento de estoque
+        // acima): sob concorrência, duas compras simultâneas com o último
+        // uso restante de um cupom `maxRedemptions` não podem as duas
+        // passar — a que perder a corrida cai no `count === 0` e aborta.
+        const redemption = await tx.coupon.updateMany({
+          where: {
+            id: couponId,
+            OR: [{ maxRedemptions: null }, { redemptionCount: { lt: coupon!.maxRedemptions! } }],
+          },
+          data: { redemptionCount: { increment: 1 } },
+        });
+        if (redemption.count === 0) {
+          throw new ConflictException({
+            errorCode: 'COUPON_EXHAUSTED',
+            message: 'Este cupom atingiu o limite de usos enquanto você finalizava a compra.',
+          });
+        }
+      }
+
+      const totalInCents = subtotalInCents + shippingCostInCents - discountInCents;
 
       return tx.order.create({
         data: {
@@ -205,7 +245,8 @@ export class OrdersRepository {
           shippingMethod: data.shippingMethod,
           subtotalInCents,
           shippingCostInCents,
-          discountInCents: 0,
+          couponId,
+          discountInCents,
           totalInCents,
           items: { create: orderItemsData },
         },

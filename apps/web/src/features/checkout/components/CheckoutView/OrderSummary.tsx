@@ -1,19 +1,57 @@
+import { useState } from 'react';
 import Image from 'next/image';
-import { Heading, Text } from '@asn/ui';
+import type { CouponPreview } from '@asn/types';
+import { Heading, Text, Button } from '@asn/ui';
 import type { CartItem } from '@/stores/cartStore';
 import { formatMoney } from '@/lib/formatMoney';
+import { inputClassName } from '@/components/form/formStyles';
+import { validateCouponAction } from '@/actions/checkout';
 
 interface OrderSummaryProps {
   items: CartItem[];
   shippingCostInCents: number | null;
+  appliedCoupon: CouponPreview | null;
+  onCouponChange: (coupon: CouponPreview | null) => void;
 }
 
-export function OrderSummary({ items, shippingCostInCents }: OrderSummaryProps) {
+export function OrderSummary({
+  items,
+  shippingCostInCents,
+  appliedCoupon,
+  onCouponChange,
+}: OrderSummaryProps) {
+  const [couponInput, setCouponInput] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   const subtotalInCents = items.reduce(
     (sum, item) => sum + item.unitPriceInCents * item.quantity,
     0,
   );
-  const totalInCents = subtotalInCents + (shippingCostInCents ?? 0);
+  const discountInCents = appliedCoupon?.discountInCents ?? 0;
+  const totalInCents = subtotalInCents + (shippingCostInCents ?? 0) - discountInCents;
+
+  async function handleApplyCoupon() {
+    if (!couponInput.trim()) return;
+    setCouponError(null);
+    setIsValidating(true);
+    try {
+      const result = await validateCouponAction(couponInput.trim(), subtotalInCents);
+      if (!result.success) {
+        setCouponError(result.message);
+        return;
+      }
+      onCouponChange(result.coupon);
+      setCouponInput('');
+    } finally {
+      setIsValidating(false);
+    }
+  }
+
+  function handleRemoveCoupon() {
+    onCouponChange(null);
+    setCouponError(null);
+  }
 
   return (
     <aside className="h-fit border border-ink/10 p-6">
@@ -54,6 +92,50 @@ export function OrderSummary({ items, shippingCostInCents }: OrderSummaryProps) 
         ))}
       </ul>
 
+      <div className="border-b border-ink/10 py-4">
+        {appliedCoupon ? (
+          <div className="flex items-center justify-between gap-2">
+            <Text size="sm">
+              Cupom <strong>{appliedCoupon.code}</strong> aplicado
+            </Text>
+            <button
+              type="button"
+              onClick={handleRemoveCoupon}
+              className="text-xs text-ink-muted underline underline-offset-4 hover:text-error"
+            >
+              Remover
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+                placeholder="Cupom de desconto"
+                className={inputClassName}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                isLoading={isValidating}
+                disabled={!couponInput.trim()}
+                onClick={handleApplyCoupon}
+              >
+                Aplicar
+              </Button>
+            </div>
+            {couponError && (
+              <Text size="xs" className="mt-2 text-error" role="alert">
+                {couponError}
+              </Text>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2 pt-4">
         <div className="flex items-center justify-between">
           <Text size="sm" tone="muted">
@@ -61,6 +143,16 @@ export function OrderSummary({ items, shippingCostInCents }: OrderSummaryProps) 
           </Text>
           <Text size="sm">{formatMoney({ amountInCents: subtotalInCents, currency: 'BRL' })}</Text>
         </div>
+        {discountInCents > 0 && (
+          <div className="flex items-center justify-between">
+            <Text size="sm" tone="muted">
+              Desconto
+            </Text>
+            <Text size="sm" className="text-olive-600">
+              -{formatMoney({ amountInCents: discountInCents, currency: 'BRL' })}
+            </Text>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <Text size="sm" tone="muted">
             Frete
