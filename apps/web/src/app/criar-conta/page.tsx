@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Container, Heading } from '@asn/ui';
 import { RegisterForm } from '@/features/auth/components/RegisterForm/RegisterForm';
+import { AuthBackground } from '@/components/layout/AuthBackground/AuthBackground';
 
 export const metadata: Metadata = {
   title: 'Criar conta',
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function CriarContaPage() {
   return (
-    <main className="bg-bone-100">
+    <AuthBackground>
       <Container className="flex min-h-[70dvh] items-center justify-center py-section">
         <div className="w-full max-w-sm">
           <Heading as="h1" size="lg" className="mb-8 text-center">
@@ -18,6 +19,6 @@ export default function CriarContaPage() {
           <RegisterForm />
         </div>
       </Container>
-    </main>
+    </AuthBackground>
   );
 }

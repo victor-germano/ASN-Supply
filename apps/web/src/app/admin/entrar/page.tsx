@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Container, Heading } from '@asn/ui';
 import { LoginForm } from '@/features/auth/components/LoginForm/LoginForm';
+import { AuthBackground } from '@/components/layout/AuthBackground/AuthBackground';
 
 /**
  * Rota deliberadamente não linkada em nenhum menu/nav público — só chega
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function AdminEntrarPage() {
   return (
-    <main className="bg-bone-100">
+    <AuthBackground>
       <Container className="flex min-h-[70dvh] items-center justify-center py-section">
         <div className="w-full max-w-sm">
           <Heading as="h1" size="lg" className="mb-8 text-center">
@@ -29,6 +30,6 @@ export default function AdminEntrarPage() {
           </Suspense>
         </div>
       </Container>
-    </main>
+    </AuthBackground>
   );
 }
