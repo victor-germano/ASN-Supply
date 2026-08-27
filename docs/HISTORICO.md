@@ -455,6 +455,33 @@ aceito do client; `Product.averageRating`/`reviewCount` (cache
 denormalizado desde o Módulo 0, nunca populado até agora) recalculados
 na mesma transação da criação da avaliação.
 
+### Upload de imagem no painel admin — Cloudinary (27/08/2026, commit `676b0b4`)
+
+`CLOUDINARY_URL` já estava reservada no `.env.example` desde o Módulo 0,
+nunca usada. Mesmo padrão porta/adapter do resto do projeto —
+`ImageUploader`/`CloudinaryImageUploader`/`UnavailableImageUploader` —
+só que aqui não existe fallback gracioso de verdade (não tem como
+inventar uma imagem sem upload configurado): o fallback lança 503
+explícito, e o formulário cai de volta pro campo de URL colada, que
+sempre funcionou. `ImageUploadField` (Web) reaproveitado pelos quatro
+formulários que pedem imagem (produto, marca, categoria, coleção); em
+`ProductForm`, o upload também preenche largura/altura automaticamente
+a partir do resultado real da Cloudinary.
+
+### Login social com Google (27/08/2026, commit `968a385`)
+
+`googleId`/`appleId` em `User` já existiam desde o Módulo 0,
+`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` já reservadas no `.env.example`,
+nunca plugadas. Mesmo padrão porta/adapter: sem as credenciais, o
+botão nem aparece na Web (`NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED`) e
+`GoogleAuthGuard` barra a rota com 503 antes de qualquer redirect real
+acontecer. `AuthService.loginWithGoogle` cobre três casos — já logou
+com Google antes, conta existente com senha no mesmo e-mail (associa
+em vez de duplicar), ou conta nova sem senha. Tokens voltam da API pro
+navegador pelo `#fragment` da URL (nunca `?query`) — fragmentos nunca
+saem do navegador, não aparecem em log de acesso nem no header
+`Referer` de terceiros.
+
 ---
 
 ## Como manter isto atualizado
