@@ -107,8 +107,8 @@ export interface CouponPreview {
 /** Painel Admin — atualização de status + rastreio (`PATCH /orders/:id`, `@Roles('ADMIN')`). */
 export interface UpdateOrderInput {
   status?: OrderStatus;
-  trackingCode?: string;
-  trackingUrl?: string;
+  trackingCode?: string | null;
+  trackingUrl?: string | null;
 }
 
 /**
