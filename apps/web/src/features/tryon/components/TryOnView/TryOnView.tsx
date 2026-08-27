@@ -147,9 +147,9 @@ export function TryOnView() {
           </div>
         </div>
 
-        {result && (
+        {result && selectedProduct && (
           <div className="mx-auto mt-10 max-w-4xl">
-            <TryOnResult result={result} />
+            <TryOnResult result={result} productSlug={selectedProduct.slug} />
           </div>
         )}
       </Container>

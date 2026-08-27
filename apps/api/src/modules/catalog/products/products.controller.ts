@@ -1,5 +1,11 @@
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
-import type { PaginatedResult, ProductDetail, ProductFacets, ProductSummary } from '@asn/types';
+import type {
+  LookItem,
+  PaginatedResult,
+  ProductDetail,
+  ProductFacets,
+  ProductSummary,
+} from '@asn/types';
 import { ProductsRepository } from './products.repository';
 import { ListProductsQueryDto } from './dto/list-products.query.dto';
 import { SearchProductsQueryDto } from './dto/search-products.query.dto';
@@ -66,5 +72,22 @@ export class ProductsController {
       });
     }
     return this.repository.findRelated(product.id, product.categoryId, query.limit);
+  }
+
+  /**
+   * "Complete o look" (Provador Digital) — peças curadas manualmente de
+   * outras lojas. Lista vazia é o caso normal (nem todo produto tem
+   * curadoria ainda), não um erro — só o slug em si precisa existir.
+   */
+  @Get(':slug/look-items')
+  async findLookItems(@Param('slug') slug: string): Promise<LookItem[]> {
+    const product = await this.repository.findIdAndCategoryBySlug(slug);
+    if (!product) {
+      throw new NotFoundException({
+        errorCode: 'PRODUCT_NOT_FOUND',
+        message: `Produto "${slug}" não encontrado.`,
+      });
+    }
+    return this.repository.findLookItems(product.id);
   }
 }

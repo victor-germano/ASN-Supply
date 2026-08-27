@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../../../../generated/client';
 import type {
+  LookItem,
   PaginatedResult,
   ProductDetail,
   ProductFacets,
@@ -226,6 +227,22 @@ export class ProductsRepository {
     });
 
     return products.map(toProductSummary);
+  }
+
+  /** "Complete o look" (Provador Digital) — itens curados manualmente, na ordem de curadoria. */
+  async findLookItems(productId: string): Promise<LookItem[]> {
+    const items = await this.prisma.lookItem.findMany({
+      where: { productId },
+      orderBy: { position: Prisma.SortOrder.asc },
+    });
+    return items.map((item) => ({
+      id: item.id,
+      platform: item.platform,
+      title: item.title,
+      imageUrl: item.imageUrl,
+      priceLabel: item.priceLabel,
+      externalUrl: item.externalUrl,
+    }));
   }
 
   /** Busca em lote por ID, preservando a ordem recebida — usado em "Vistos recentemente" (histórico local do navegador). */

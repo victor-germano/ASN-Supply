@@ -124,3 +124,20 @@ export interface ProductFacets {
   genders: ProductGenderFacetOption[];
   priceRange: { minInCents: number; maxInCents: number };
 }
+
+/**
+ * "Complete o look" — peça de outra loja curada manualmente para combinar
+ * com o produto (ver comentário do model `LookItem` no schema Prisma para o
+ * porquê de ser curadoria manual, não integração ao vivo com marketplaces).
+ * `priceLabel` é texto livre ("R$ 89,90"), não um valor rastreado — preço
+ * exibido é só o de quando foi cadastrado, sempre conferido na loja de
+ * destino antes de comprar.
+ */
+export interface LookItem {
+  id: string;
+  platform: string;
+  title: string;
+  imageUrl: string;
+  priceLabel: string;
+  externalUrl: string;
+}

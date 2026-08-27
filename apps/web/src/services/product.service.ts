@@ -1,4 +1,4 @@
-import type { ProductDetail, ProductSummary } from '@asn/types';
+import type { LookItem, ProductDetail, ProductSummary } from '@asn/types';
 import { ApiError, apiFetch } from './apiClient';
 
 const PRODUCT_REVALIDATE_SECONDS = 120;
@@ -18,6 +18,13 @@ export async function getProductBySlug(slug: string): Promise<ProductDetail | nu
 export function getRelatedProducts(slug: string, limit: number): Promise<ProductSummary[]> {
   return apiFetch<ProductSummary[]>(`/products/${slug}/related`, {
     searchParams: { limit },
+    revalidateSeconds: PRODUCT_REVALIDATE_SECONDS,
+  });
+}
+
+/** "Complete o look" (Provador Digital) — lista vazia é o caso normal, não um erro. */
+export function getLookItems(slug: string): Promise<LookItem[]> {
+  return apiFetch<LookItem[]>(`/products/${slug}/look-items`, {
     revalidateSeconds: PRODUCT_REVALIDATE_SECONDS,
   });
 }

@@ -159,6 +159,7 @@ model Product {
   wishlistItems  WishlistItem[]
   orderItems     OrderItem[]
   cartItems      CartItem[]
+  lookItems      LookItem[]
 
   @@index([brandId])
   @@index([categoryId])
@@ -166,6 +167,32 @@ model Product {
   @@index([isPublished, isNewArrival])
   @@index([priceInCents])
   @@map("products")
+}
+
+// "Complete o look" — peças de outras lojas (Shein, AliExpress, Shopee,
+// Mercado Livre etc.) curadas manualmente para combinar com o produto,
+// exibidas no Provador Digital. De propósito NÃO é uma integração ao vivo
+// com essas plataformas: nenhuma delas oferece hoje uma API pública de
+// "combinar peça" para um pequeno lojista; AliExpress/Shopee têm programas
+// de afiliado que exigem aprovação externa, e Shein não tem API pública
+// acessível (só daria via scraping, fora de cotação — violaria os termos
+// deles). Curadoria manual, com link real pra cada peça, é o caminho sem
+// dependência de acesso de terceiros ainda não obtido — ver
+// scripts/add-look-item.ts para cadastrar itens reais.
+model LookItem {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  platform   String
+  title      String
+  imageUrl   String
+  priceLabel String
+  externalUrl String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([productId, position])
+  @@map("look_items")
 }
 
 model ProductImage {
