@@ -7,3 +7,4 @@ export * from './address';
 export * from './marketing';
 export * from './reviews';
 export * from './tryon';
+export * from './admin-dashboard';

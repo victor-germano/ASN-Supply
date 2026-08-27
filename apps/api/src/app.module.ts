@@ -20,6 +20,7 @@ import { AdminProductsModule } from './modules/admin-products/admin-products.mod
 import { AdminCatalogModule } from './modules/admin-catalog/admin-catalog.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
     AdminCatalogModule,
     UploadsModule,
     AdminUsersModule,
+    AdminDashboardModule,
   ],
   providers: [
     {

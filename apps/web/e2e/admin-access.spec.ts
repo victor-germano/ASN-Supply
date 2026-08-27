@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginAsAdmin } from './helpers';
 
 test.describe('Acesso administrativo', () => {
   test('/admin/entrar é acessível diretamente (rota oculta, não quebrada)', async ({ page }) => {
@@ -25,5 +26,17 @@ test.describe('Acesso administrativo', () => {
     await page.goto('/admin');
     // Não vai pro /admin/entrar (não "convida" a tentar) — volta pra home.
     await expect(page).toHaveURL('/');
+  });
+
+  test('/admin autenticado como ADMIN mostra o painel com dados reais, não o placeholder antigo', async ({
+    page,
+  }) => {
+    await loginAsAdmin(page);
+    await expect(page.getByText('Faturamento')).toBeVisible();
+    await expect(page.getByText('Aguardando pagamento').first()).toBeVisible();
+    await expect(page.getByText('Clientes')).toBeVisible();
+    // Texto antigo (Módulo 6, quando `/admin` era só a confirmação de
+    // login) não pode voltar a aparecer — o painel de verdade já existe.
+    await expect(page.getByText('ainda não foi construído')).toHaveCount(0);
   });
 });

@@ -582,6 +582,21 @@ seletor foi conferido direto contra o componente real (label, texto de
 botão, mensagem de erro) em vez de assumido, mas isso não substitui uma
 rodada real.
 
+### Painel administrativo — dashboard real em `/admin` (27/08/2026)
+
+`/admin` era um placeholder literal desde a fundação do painel (Módulo
+6): o texto dizia "CRUD de produtos, pedidos e clientes ainda não foi
+construído" muito depois de tudo isso já existir — sobrou de antes de
+`AdminProductsModule`/`AdminUsersModule`/pedidos existirem, nunca
+atualizado. `GET /admin/dashboard` (`AdminDashboardModule`) agrega o
+que os outros módulos já gravam — nenhuma tabela nova, só `count`/
+`aggregate` em paralelo: faturamento (soma de pedidos `PAID` em diante,
+`PENDING_PAYMENT` não conta como venda ainda), total de pedidos,
+pedidos aguardando pagamento, clientes, produtos publicados, e os 5
+pedidos mais recentes. `/admin` agora mostra isso em vez do texto
+fixo; e2e novo (`admin-access.spec.ts`) confirma que o texto antigo
+("ainda não foi construído") não pode voltar a aparecer.
+
 ## Como manter isto atualizado
 
 Ao final de qualquer mudança de produto (não de tooling/config isolado),
