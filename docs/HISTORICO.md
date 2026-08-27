@@ -17,25 +17,7 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
-### Cancelamento de pedido pelo cliente (27/08/2026)
-
-`Order.canCancel` — campo novo, calculado sempre no servidor (nunca
-deduzido no client) combinando posse (é o dono do pedido?) e status
-(`PENDING_PAYMENT`/`PAID`, antes de `PROCESSING`) numa coisa só, pra
-`OrderConfirmation` não precisar reimplementar nenhuma das duas regras.
-`OrdersRepository.toOrder()` sempre devolve `canCancel: false` (não sabe
-quem está perguntando); só `OrdersService` sobrescreve com o valor real,
-em todo caminho que devolve um `Order` (`create`/`findById`/
-`findManyForUser`).
-
-`POST /orders/:id/cancel` (`JwtAuthGuard`, nunca `OptionalJwtAuthGuard`
-— convidado não tem como provar posse) revalida posse + status de novo
-no servidor (nunca confia no `canCancel` já exposto) e reverte, numa
-transação, os dois efeitos colaterais que `create()` causou: devolve a
-quantidade ao estoque de cada item, e decrementa `Coupon.redemptionCount`
-se o pedido usou cupom (guardado com `gt: 0`, defensivo). Botão
-"Cancelar pedido" (`CancelOrderButton`, com confirmação) só aparece em
-`OrderConfirmation` quando `order.canCancel` é `true`.
+_Nada no momento._
 
 ---
 
@@ -526,6 +508,26 @@ alterar o PRÓPRIO papel (um admin sozinho não pode se rebaixar sem
 querer e ficar trancado pra fora do próprio painel). `/admin/clientes`
 (Web) reflete a mesma proteção na UI: o seletor de papel já vem
 desabilitado na própria linha do admin logado.
+
+### Cancelamento de pedido pelo cliente (27/08/2026, commit `249b818`)
+
+`Order.canCancel` — campo novo, calculado sempre no servidor (nunca
+deduzido no client) combinando posse (é o dono do pedido?) e status
+(`PENDING_PAYMENT`/`PAID`, antes de `PROCESSING`) numa coisa só, pra
+`OrderConfirmation` não precisar reimplementar nenhuma das duas regras.
+`OrdersRepository.toOrder()` sempre devolve `canCancel: false` (não sabe
+quem está perguntando); só `OrdersService` sobrescreve com o valor real,
+em todo caminho que devolve um `Order` (`create`/`findById`/
+`findManyForUser`).
+
+`POST /orders/:id/cancel` (`JwtAuthGuard`, nunca `OptionalJwtAuthGuard`
+— convidado não tem como provar posse) revalida posse + status de novo
+no servidor (nunca confia no `canCancel` já exposto) e reverte, numa
+transação, os dois efeitos colaterais que `create()` causou: devolve a
+quantidade ao estoque de cada item, e decrementa `Coupon.redemptionCount`
+se o pedido usou cupom (guardado com `gt: 0`, defensivo). Botão
+"Cancelar pedido" (`CancelOrderButton`, com confirmação) só aparece em
+`OrderConfirmation` quando `order.canCancel` é `true`.
 
 ## Como manter isto atualizado
 
