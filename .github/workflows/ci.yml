@@ -73,3 +73,100 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    # Só roda depois de lint/typecheck/test/build passarem — não vale gastar
+    # o tempo (bem maior) de subir os dois apps + navegador só pra falhar
+    # num erro de lint que já teria sido pego antes.
+    needs: quality
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: asn
+          POSTGRES_PASSWORD: asn
+          POSTGRES_DB: asn_supply
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U asn -d asn_supply"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://asn:asn@localhost:5432/asn_supply?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-secret-must-be-at-least-32-characters-long
+      NODE_ENV: production
+      PORT: 3333
+      # Inline-adas no bundle do client NO MOMENTO DO BUILD (Next.js não lê
+      # `NEXT_PUBLIC_*` em runtime) — precisam estar corretas ANTES do passo
+      # de build abaixo, não só na hora de rodar os testes.
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3333/v1
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      # Os dois apps já são subidos manualmente pelos passos abaixo (build de
+      # produção, não `next dev`) — sem isso, o `webServer` do Playwright
+      # tentaria subir um SEGUNDO `next dev` e colidiria com o processo que
+      # já está rodando (mesmo problema já documentado em docs/HISTORICO.md).
+      PLAYWRIGHT_SKIP_WEBSERVER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @asn/web exec playwright install --with-deps chromium
+
+      - name: Generate Prisma client
+        run: pnpm --filter @asn/api db:generate
+
+      - name: Run database migrations
+        run: pnpm --filter @asn/api exec prisma migrate deploy
+
+      - name: Seed database
+        run: pnpm --filter @asn/api db:seed
+
+      - name: Build
+        run: pnpm build
+
+      # Os dois `&` e o `wait-on` num único passo — processo em background
+      # continua rodando nos passos seguintes do mesmo job (mesma VM, sem
+      # container por passo), mas só depois de confirmado no ar aqui, não
+      # antes: iniciar e aguardar juntos evita corrida entre "subiu" e
+      # "está pronto pra responder request".
+      - name: Start API and Web (background), wait until both respond
+        run: |
+          pnpm --filter @asn/api start &
+          pnpm --filter @asn/web start &
+          npx wait-on --timeout 60000 http://localhost:3333/v1/health http://localhost:3000
+
+      - name: Run Playwright tests
+        run: pnpm --filter @asn/web test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
