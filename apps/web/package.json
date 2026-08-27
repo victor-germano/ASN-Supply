@@ -10,7 +10,9 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@asn/types": "workspace:*",
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "@asn/config": "workspace:*",
+    "@playwright/test": "^1.62.1",
     "@tanstack/react-query-devtools": "^5.62.11",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
