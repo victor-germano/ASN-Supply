@@ -21,6 +21,7 @@ import { generateOrderCode } from './order-code';
 import type { ShippingAddressDto } from './dto/shipping-address.dto';
 import { AddressesRepository } from '../addresses/addresses.repository';
 import { calculateCouponDiscountInCents, validateCoupon } from './coupon';
+import { isOrderCancellableStatus } from './cancellation';
 
 const orderInclude = {
   items: true,
@@ -311,6 +312,65 @@ export class OrdersRepository {
     return orders.map(toOrder);
   }
 
+  /**
+   * Cancelamento pelo próprio cliente — reverte os dois efeitos colaterais
+   * que `create()` causou (estoque decrementado, cupom "gasto"), nunca só
+   * muda o status: sem devolver o estoque, cada cancelamento perderia
+   * unidades pra sempre; sem devolver o uso do cupom, um cliente que
+   * cancelou e recomprou gastaria dois usos por uma compra só.
+   *
+   * `userId` (do JWT, nunca do body) tem que bater com o dono do pedido —
+   * 404 (não 403) se não bater ou se o pedido não existir, mesmo padrão de
+   * "não confirmar a existência de recurso de terceiro" já usado em
+   * `findById`/`OrdersService`. Status fora de
+   * `isOrderCancellableStatus` (ex: já `SHIPPED`) vira `ConflictException`.
+   */
+  async cancelByCustomer(orderId: string, userId: string): Promise<Order> {
+    const existing = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException({
+        errorCode: 'ORDER_NOT_FOUND',
+        message: 'Pedido não encontrado.',
+      });
+    }
+    if (!isOrderCancellableStatus(existing.status)) {
+      throw new ConflictException({
+        errorCode: 'ORDER_NOT_CANCELLABLE',
+        message: 'Este pedido não pode mais ser cancelado — ele já está a caminho.',
+      });
+    }
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      for (const item of existing.items) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      }
+      if (existing.couponId) {
+        // Condicional (`gt: 0`) só por segurança defensiva — não devia
+        // existir um cupom com `redemptionCount` já em 0 tendo sido usado
+        // por ESTE pedido, mas decrementar sem checagem arriscaria um
+        // contador negativo se essa invariante já tiver sido violada por
+        // algum motivo.
+        await tx.coupon.updateMany({
+          where: { id: existing.couponId, redemptionCount: { gt: 0 } },
+          data: { redemptionCount: { decrement: 1 } },
+        });
+      }
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+        include: orderInclude,
+      });
+    });
+
+    return toOrder(order);
+  }
+
   /** Painel Admin — todos os pedidos, não só os de um usuário; filtro opcional por status. */
   async findAllForAdmin(params: {
     page: number;
@@ -443,6 +503,11 @@ function toOrder(order: OrderWithRelations): Order {
     estimatedDeliveryAt: order.estimatedDeliveryAt?.toISOString() ?? null,
     trackingCode: order.trackingCode,
     trackingUrl: order.trackingUrl,
+    // Conservador de propósito: este repositório não sabe quem está
+    // pedindo (`OrdersService` sabe, via `requestingUser`) — sempre `false`
+    // aqui, sobrescrito pelo service com o valor de verdade antes de
+    // devolver a resposta. Nunca confie neste campo direto do repositório.
+    canCancel: false,
   };
 }
 

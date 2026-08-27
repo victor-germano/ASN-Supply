@@ -4,6 +4,7 @@ import type { Order, PaymentIntentResult } from '@asn/types';
 import { Badge, Container, Heading, Text, buttonStyles } from '@asn/ui';
 import { formatMoney } from '@/lib/formatMoney';
 import { CreditCardIcon, TruckIcon } from '@/components/icons';
+import { CancelOrderButton } from './CancelOrderButton';
 
 const STATUS_LABEL: Record<Order['status'], string> = {
   PENDING_PAYMENT: 'Aguardando pagamento',
@@ -46,6 +47,7 @@ export function OrderConfirmation({
               Recebemos seu pedido
             </Heading>
             <Badge tone="olive">{STATUS_LABEL[order.status]}</Badge>
+            {order.canCancel && <CancelOrderButton orderId={order.id} />}
           </div>
 
           <div className="border border-ink/10 p-6">

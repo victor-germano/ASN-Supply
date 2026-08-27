@@ -67,6 +67,17 @@ export interface Order {
   /** Preenchidos manualmente pelo admin — `null` até o pedido ser marcado como enviado (ver Painel Admin). */
   trackingCode: string | null;
   trackingUrl: string | null;
+  /**
+   * Calculado pelo servidor (nunca deduzido no client) a partir de quem
+   * está vendo o pedido AGORA + o status atual — combina "é o dono deste
+   * pedido" e "o status ainda permite cancelar" numa coisa só, pra
+   * `OrderConfirmation` não precisar reimplementar nenhuma das duas
+   * regras (a segunda checagem sozinha, sem a primeira, mostraria o botão
+   * pra qualquer convidado com o link do pedido de outra pessoa). A ação
+   * de cancelar em si (`POST /orders/:id/cancel`) sempre revalida os dois
+   * de novo no servidor — isto aqui é só pra decidir mostrar o botão.
+   */
+  canCancel: boolean;
 }
 
 /**

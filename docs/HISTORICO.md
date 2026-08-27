@@ -17,8 +17,25 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
-_Nada no momento — a sessão de 20–21/08/2026 (Área do Cliente até Módulo 8,
-listada abaixo) foi inteiramente organizada em commits atômicos por módulo._
+### Cancelamento de pedido pelo cliente (27/08/2026)
+
+`Order.canCancel` — campo novo, calculado sempre no servidor (nunca
+deduzido no client) combinando posse (é o dono do pedido?) e status
+(`PENDING_PAYMENT`/`PAID`, antes de `PROCESSING`) numa coisa só, pra
+`OrderConfirmation` não precisar reimplementar nenhuma das duas regras.
+`OrdersRepository.toOrder()` sempre devolve `canCancel: false` (não sabe
+quem está perguntando); só `OrdersService` sobrescreve com o valor real,
+em todo caminho que devolve um `Order` (`create`/`findById`/
+`findManyForUser`).
+
+`POST /orders/:id/cancel` (`JwtAuthGuard`, nunca `OptionalJwtAuthGuard`
+— convidado não tem como provar posse) revalida posse + status de novo
+no servidor (nunca confia no `canCancel` já exposto) e reverte, numa
+transação, os dois efeitos colaterais que `create()` causou: devolve a
+quantidade ao estoque de cada item, e decrementa `Coupon.redemptionCount`
+se o pedido usou cupom (guardado com `gt: 0`, defensivo). Botão
+"Cancelar pedido" (`CancelOrderButton`, com confirmação) só aparece em
+`OrderConfirmation` quando `order.canCancel` é `true`.
 
 ---
 
@@ -483,6 +500,32 @@ saem do navegador, não aparecem em log de acesso nem no header
 `Referer` de terceiros.
 
 ---
+
+### Testes e2e passam a rodar no CI (27/08/2026, commit `8fb4563`)
+
+Os 12 testes e2e (Playwright) existiam desde a sessão anterior, mas só
+rodavam localmente — o workflow do GitHub Actions (job `quality`) nunca
+os chamava, então uma regressão nesses fluxos nunca teria travado um PR.
+Novo job `e2e`, depende de `quality` passar primeiro; sobe os dois apps
+em modo produção (não `dev`/`--watch`, mais rápido e estável em CI) com
+`NEXT_PUBLIC_*` corretos ANTES do build (Next inline-a essas variáveis
+no bundle do client, não lê em runtime); migra + semeia o banco (os
+testes navegam o catálogo de verdade); `PLAYWRIGHT_SKIP_WEBSERVER=1`
+pra não colidir com os servidores já subidos manualmente. Relatório do
+Playwright sobe como artefato só quando o job falha.
+
+### Gestão de clientes no painel admin (27/08/2026, commit `c546cef`)
+
+Não existia tela nenhuma pra ver/gerenciar clientes — promover alguém a
+admin só era possível via `scripts/promote-to-admin.ts`, direto no
+banco (que continua sendo o único jeito de criar o PRIMEIRO admin,
+antes de existir um painel pra ele entrar). `GET /admin/users` (lista
+paginada, busca por nome/e-mail, contagem de pedidos via `_count` sem
+N+1) e `PATCH /admin/users/:id/role` — este último barra explicitamente
+alterar o PRÓPRIO papel (um admin sozinho não pode se rebaixar sem
+querer e ficar trancado pra fora do próprio painel). `/admin/clientes`
+(Web) reflete a mesma proteção na UI: o seletor de papel já vem
+desabilitado na própria linha do admin logado.
 
 ## Como manter isto atualizado
 

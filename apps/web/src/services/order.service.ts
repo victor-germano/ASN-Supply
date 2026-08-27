@@ -56,3 +56,10 @@ export function updateAdminOrder(id: string, input: UpdateOrderInput): Promise<O
     init: { method: 'PATCH', body: JSON.stringify(input) },
   });
 }
+
+/** Cancelamento pelo próprio cliente (Área do Cliente) — exige sessão, ver `JwtAuthGuard` na API. */
+export function cancelOrder(id: string): Promise<Order> {
+  return authenticatedFetch<Order>(`/orders/${id}/cancel`, {
+    init: { method: 'POST' },
+  });
+}

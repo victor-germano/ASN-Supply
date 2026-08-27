@@ -12,6 +12,7 @@ import { OrdersRepository, type CreateOrderData } from './orders.repository';
 import { PaymentGateway } from '../payments/payment-gateway';
 import { EmailSender } from '../email/email-sender';
 import { orderConfirmationEmail, orderShippedEmail } from '../email/templates';
+import { isOrderCancellableStatus } from './cancellation';
 
 const NOT_FOUND_ERROR = {
   errorCode: 'ORDER_NOT_FOUND',
@@ -32,7 +33,12 @@ export class OrdersService {
   ) {}
 
   async create(data: CreateOrderData): Promise<Order> {
-    const order = await this.repository.create(data);
+    const created = await this.repository.create(data);
+    // `data.userId` (não `created`) decide a posse aqui — o repositório
+    // sempre devolve `canCancel: false` (não sabe quem pediu, ver
+    // `OrdersRepository`); o pedido recém-criado é sempre `PENDING_PAYMENT`
+    // (default do schema), então só falta saber se tem dono.
+    const order: Order = { ...created, canCancel: data.userId !== undefined };
     // Fire-and-forget: uma falha de envio não pode derrubar uma compra que
     // já foi commitada de verdade (estoque decrementado, pedido criado) —
     // mesmo raciocínio do e-mail de verificação em `AuthService.register`.
@@ -72,11 +78,33 @@ export class OrdersService {
     if (belongsToSomeoneElse) {
       throw new NotFoundException(NOT_FOUND_ERROR);
     }
-    return result.order;
+    const isOwner = result.ownerId !== null && result.ownerId === requestingUser?.id;
+    return {
+      ...result.order,
+      canCancel: isOwner && isOrderCancellableStatus(result.order.status),
+    };
   }
 
-  findManyForUser(userId: string): Promise<Order[]> {
-    return this.repository.findManyByUserId(userId);
+  async findManyForUser(userId: string): Promise<Order[]> {
+    const orders = await this.repository.findManyByUserId(userId);
+    // Todo pedido aqui já é do próprio `userId` consultado (a query do
+    // repositório já filtra por isso) — só falta checar o status pra
+    // decidir `canCancel`, sem precisar reconferir posse de novo.
+    return orders.map((order) => ({
+      ...order,
+      canCancel: isOrderCancellableStatus(order.status),
+    }));
+  }
+
+  /**
+   * `userId` vem do JWT (`@CurrentUser()`), nunca do body — a checagem de
+   * posse acontece de novo aqui dentro (`OrdersRepository.cancelByCustomer`),
+   * mesmo que `canCancel` já tenha decidido mostrar o botão: o campo
+   * exposto é só pra UI, a autorização de verdade é sempre revalidada na
+   * hora da ação em si.
+   */
+  cancelForCustomer(orderId: string, userId: string): Promise<Order> {
+    return this.repository.cancelByCustomer(orderId, userId);
   }
 
   findAllForAdmin(params: {

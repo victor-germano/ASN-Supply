@@ -89,6 +89,22 @@ export class OrdersController {
   }
 
   /**
+   * Cancelamento pelo próprio cliente (Área do Cliente) — nunca disponível
+   * pra convidado (por isso `JwtAuthGuard`, não o `OptionalJwtAuthGuard`
+   * usado nas outras rotas deste controller: sem conta não há como provar
+   * posse do pedido pra essa ação). `Order.canCancel` já reflete posse +
+   * status na resposta de `GET /orders/:id`, mas a posse e o status são
+   * sempre revalidados de novo aqui dentro (`OrdersService.cancelForCustomer`
+   * → `OrdersRepository.cancelByCustomer`).
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<Order> {
+    return this.service.cancelForCustomer(id, user.id);
+  }
+
+  /**
    * Etapa de pagamento do checkout — hoje sempre retorna indisponível (ver
    * `NullPaymentGateway`). Mesma proteção de posse de `findById` (ver
    * comentário lá) — o `:id` é o mesmo recurso, não faz sentido proteger
