@@ -17,9 +17,26 @@
  * catálogo) — pensado para bancos de desenvolvimento/demonstração, nunca
  * para produção.
  */
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '../generated/client';
 
 const prisma = new PrismaClient();
+
+// Mesmo custo usado em `AuthService` (`BCRYPT_ROUNDS`) — não importado
+// direto porque o seed não depende do resto da API, só do Prisma.
+const BCRYPT_ROUNDS = 12;
+
+/**
+ * Conta admin fixa (`@example.com`, mesmo domínio limpo por
+ * `resetCatalogData` a cada rodada) e um cupom sempre válido — sem eles,
+ * os testes e2e de painel admin (CRUD de catálogo, gestão de clientes,
+ * rastreio) e de cupom no checkout não têm como rodar sem promover um
+ * usuário manualmente. `scripts/promote-to-admin.ts` continua sendo o
+ * único caminho pra promover uma conta de verdade fora deste seed.
+ */
+const E2E_ADMIN_EMAIL = 'e2e.admin@example.com';
+const E2E_ADMIN_PASSWORD = 'SenhaAdminE2E123!';
+const E2E_COUPON_CODE = 'E2E10';
 
 /** Pool de composições abstratas próprias (public/seed-art/art-01.svg .. art-08.svg em apps/web). */
 const ART_COUNT = 8;
@@ -57,6 +74,30 @@ async function resetCatalogData(): Promise<void> {
   // qualquer conta real criada fora deste script (Módulo 5 em diante) toda
   // vez que o seed rodasse de novo.
   await prisma.user.deleteMany({ where: { email: { endsWith: '@example.com' } } });
+  // Só o cupom fixo de e2e — nunca um `deleteMany()` sem filtro, que
+  // apagaria cupons reais criados fora deste script.
+  await prisma.coupon.deleteMany({ where: { code: E2E_COUPON_CODE } });
+}
+
+/** Conta admin + cupom fixos usados pelos testes e2e (ver comentário no topo do arquivo). */
+async function seedE2EFixtures(): Promise<void> {
+  const passwordHash = await bcrypt.hash(E2E_ADMIN_PASSWORD, BCRYPT_ROUNDS);
+  await prisma.user.create({
+    data: {
+      name: 'Admin E2E',
+      email: E2E_ADMIN_EMAIL,
+      passwordHash,
+      role: 'ADMIN',
+      emailVerifiedAt: new Date(),
+    },
+  });
+  await prisma.coupon.create({
+    data: {
+      code: E2E_COUPON_CODE,
+      percentageOff: 10,
+      isActive: true,
+    },
+  });
 }
 
 async function seedBrands() {

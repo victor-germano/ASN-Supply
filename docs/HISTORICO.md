@@ -529,6 +529,59 @@ se o pedido usou cupom (guardado com `gt: 0`, defensivo). Botão
 "Cancelar pedido" (`CancelOrderButton`, com confirmação) só aparece em
 `OrderConfirmation` quando `order.canCancel` é `true`.
 
+### Cobertura e2e expandida (27/08/2026)
+
+Os 6 specs originais (Playwright) cobriam só até o Módulo 4 — tudo
+construído depois (avaliações/perguntas, cupom, comparador, busca por
+IA, CRUD de catálogo no admin, rastreio, cancelamento de pedido, login
+com Google, upload de imagem) nunca tinha teste e2e nenhum. Mais 9
+specs novos, todos reaproveitando os mesmos padrões dos existentes
+(um e-mail único por conta criada, `window.confirm` aceito antes do
+clique que dispara o dialog).
+
+`prisma/seed.ts` ganhou duas fixtures fixas (`seedE2EFixtures`), sem as
+quais boa parte disso não tinha como rodar: uma conta `ADMIN` fixa
+(`e2e.admin@example.com`, limpa e recriada a cada seed junto com o resto
+do domínio `@example.com`) e um cupom sempre válido (`E2E10`, 10% off,
+sem mínimo/validade). Ambas só existem em bancos de desenvolvimento/CI
+— o mesmo seed "destrutivo por design" que já nunca roda em produção.
+
+- `reviews-questions.spec.ts` — cliente autenticado envia avaliação e
+  pergunta na PDP, e as duas aparecem na página.
+- `coupon-checkout.spec.ts` — aplica o cupom fixo na revisão do
+  checkout, confirma que a linha "Desconto" aparece (não só que o
+  código foi aceito).
+- `order-cancellation.spec.ts` — cliente cancela um pedido recém-criado;
+  confirma que o botão some e o status vira "Cancelado" tanto na
+  confirmação quanto no histórico.
+- `admin-catalog-crud.spec.ts` — cria, edita e exclui uma marca em
+  `/admin/catalogo`.
+- `admin-order-tracking.spec.ts` — duas sessões (`browser.newContext()`
+  pra não perder o login do cliente): admin marca como "Enviado" com
+  rastreio, cliente revisita a própria confirmação e vê o rastreio.
+- `compare.spec.ts` — seleciona 2 produtos na listagem, compara lado a
+  lado em `/comparar`.
+- `ai-search.spec.ts` — busca por "Nova Court" (nome real de produtos no
+  seed) confirma que o fallback textual (sem `ANTHROPIC_API_KEY`, nunca
+  setada no job `e2e` do CI) ainda encontra resultado, não só a IA.
+- `oauth-and-uploads.spec.ts` — sem credenciais (nunca setadas no CI, de
+  propósito): botão "Continuar com Google" nem aparece; upload de imagem
+  falha com a mensagem clara de `UnavailableImageUploader`, e o campo de
+  URL continua funcionando normalmente.
+
+`helpers.ts` (novo, nenhum arquivo termina em `.spec.ts` — o Playwright
+nunca os roda como teste) reúne o que os specs novos repetiam: criar
+conta, logar como admin, adicionar o primeiro produto ao carrinho, e
+percorrer os 3 passos do checkout até a confirmação.
+
+**Limitação desta sessão**: sem Postgres/Docker disponíveis neste
+sandbox, não foi possível rodar o `db:seed` nem o Playwright de verdade
+contra um servidor local pra confirmar os specs passando — a primeira
+execução real acontece no job `e2e` do CI, no próximo push. Cada
+seletor foi conferido direto contra o componente real (label, texto de
+botão, mensagem de erro) em vez de assumido, mas isso não substitui uma
+rodada real.
+
 ## Como manter isto atualizado
 
 Ao final de qualquer mudança de produto (não de tooling/config isolado),
