@@ -3,9 +3,9 @@
 E-commerce premium de tênis — curadoria de marcas e edições exclusivas, com um diferencial de
 Provador Inteligente assistido por IA.
 
-> O agente de emissão de NF-e que existia anteriormente neste repositório foi preservado em
-> [`legacy/agente-emissao-nf`](legacy/agente-emissao-nf) como projeto independente e não faz parte
-> desta plataforma.
+> O agente de emissão de NF-e que existia anteriormente neste repositório passou a viver em um
+> repositório próprio ([`agente-de-emissao-NF-e`](https://github.com/victor-germano/agente-de-emissao-NF-e),
+> branch `prototipo-vyx-nodejs`) e não faz parte desta plataforma.
 
 ## Arquitetura
 
