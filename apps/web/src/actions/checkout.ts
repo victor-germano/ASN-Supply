@@ -50,6 +50,7 @@ const PAYMENT_UNAVAILABLE_FALLBACK: PaymentIntentResult = {
   method: null,
   providerReference: null,
   clientSecret: null,
+  pix: null,
   message: 'Não foi possível consultar o status do pagamento agora.',
 };
 

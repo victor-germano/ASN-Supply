@@ -1,12 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Porta 3000 é o padrão documentado no README (`pnpm dev`) — sobrescrita
- * por `PLAYWRIGHT_BASE_URL` quando necessário (ex: nesta sessão de
- * desenvolvimento, onde a porta 3000 já estava ocupada por outro processo
- * e o dev server real subiu em :3050).
+ * Porta 3100 é a porta própria da ASN (`pnpm dev`, ver README) — fora das
+ * usadas pela Tech N na mesma máquina (3000/3001/3333/8080). Sobrescrita
+ * por `PLAYWRIGHT_BASE_URL` quando necessário.
  */
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3100';
 
 export default defineConfig({
   testDir: './e2e',

@@ -1,6 +1,6 @@
 import { Text } from '@asn/ui';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1';
 
 /**
  * Sem componente próprio de estado/interação — é só um `<a href>` pra

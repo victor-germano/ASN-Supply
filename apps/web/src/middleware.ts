@@ -7,7 +7,7 @@ import {
   authCookieOptions,
 } from '@/lib/authCookies';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1';
 
 /**
  * Refresh proativo de sessão para as áreas autenticadas sob o matcher

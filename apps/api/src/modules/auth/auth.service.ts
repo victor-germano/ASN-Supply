@@ -8,7 +8,11 @@ import { Prisma, type User } from '../../../generated/client';
 import type { EnvConfig } from '../../config/env.validation';
 import { UsersRepository } from '../users/users.repository';
 import { EmailSender } from '../email/email-sender';
-import { emailVerificationEmail, passwordResetEmail } from '../email/templates';
+import {
+  emailVerificationEmail,
+  passwordChangedEmail,
+  passwordResetEmail,
+} from '../email/templates';
 import type { JwtPayload } from './jwt-payload';
 import type { GoogleProfile } from './strategies/google.strategy';
 
@@ -37,10 +41,12 @@ export interface LoginInput {
 /**
  * Emite/renova o par de tokens (access 15min + refresh 30 dias, ambos
  * assinados com o mesmo `JWT_SECRET`, diferenciados só pelo claim `type`).
- * Sem estado no servidor no v1 — não há tabela de refresh tokens nem
- * revogação; logout é responsabilidade do Next.js (limpar os cookies).
- * Upgrade natural depois é uma tabela `RefreshToken` com `jti`/`revokedAt`
- * se "sair de todos os dispositivos" virar requisito.
+ * Sem estado no servidor no v1 — não há tabela de refresh tokens;
+ * logout é responsabilidade do Next.js (limpar os cookies). A única
+ * revogação que existe é por troca de senha: o refresh token carrega
+ * `pwv` (mesmo mecanismo do link de redefinição), então redefinir a senha
+ * derruba toda sessão aberta em outro aparelho no próximo refresh (no
+ * máximo os 15min de vida do access token que já estava emitido).
  */
 @Injectable()
 export class AuthService {
@@ -75,7 +81,7 @@ export class AuthService {
       this.sendVerificationEmail(user).catch((error) =>
         this.logger.error(`Falha ao enviar e-mail de verificação para "${user.email}": ${error}`),
       );
-      return this.issueTokenPair(toAuthenticatedUser(user));
+      return this.issueTokenPair(user);
     } catch (error) {
       // A checagem acima (`findByEmail`) e o `create` não são atômicos —
       // duas requisições concorrentes com o mesmo e-mail podem ambas passar
@@ -117,7 +123,7 @@ export class AuthService {
         message: 'E-mail ou senha incorretos.',
       });
     }
-    return this.issueTokenPair(toAuthenticatedUser(user));
+    return this.issueTokenPair(user);
   }
 
   async refresh(refreshToken: string): Promise<AuthResponse> {
@@ -135,7 +141,16 @@ export class AuthService {
         message: 'Sessão expirada, faça login novamente.',
       });
     }
-    return this.issueTokenPair(toAuthenticatedUser(user));
+    // Senha trocada depois que esta sessão começou (ver comentário da
+    // classe). Conta só-OAuth não tem `passwordHash`: os dois lados ficam
+    // `undefined` e a comparação passa.
+    if (payload.pwv !== passwordVersionOf(user)) {
+      throw new UnauthorizedException({
+        errorCode: 'SESSION_REVOKED',
+        message: 'Sua senha foi alterada. Faça login novamente.',
+      });
+    }
+    return this.issueTokenPair(user);
   }
 
   /**
@@ -162,7 +177,7 @@ export class AuthService {
             avatarUrl: profile.avatarUrl,
           });
     }
-    return this.issueTokenPair(toAuthenticatedUser(user));
+    return this.issueTokenPair(user);
   }
 
   /**
@@ -216,7 +231,20 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     const updated = await this.usersRepository.updatePasswordHash(user.id, passwordHash);
-    return this.issueTokenPair(toAuthenticatedUser(updated));
+    // Aviso de segurança: se não foi o dono da conta, é assim que ele fica
+    // sabendo. Fire-and-forget pelo mesmo motivo do e-mail de verificação
+    // em `register` — a senha já foi trocada, falhar aqui não desfaz nada.
+    const { subject, html } = passwordChangedEmail(
+      `${this.config.get('WEB_APP_URL', { infer: true })}/esqueci-senha`,
+    );
+    this.emailSender
+      .send({ to: updated.email, subject, html })
+      .catch((error) =>
+        this.logger.error(
+          `Falha ao enviar aviso de senha alterada para "${updated.email}": ${error}`,
+        ),
+      );
+    return this.issueTokenPair(updated);
   }
 
   async requestEmailVerification(userId: string): Promise<void> {
@@ -268,23 +296,29 @@ export class AuthService {
     }
   }
 
-  private async issueTokenPair(user: AuthenticatedUser): Promise<AuthResponse> {
+  private async issueTokenPair(user: User): Promise<AuthResponse> {
     const basePayload = { sub: user.id, email: user.email, role: user.role };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync({ ...basePayload, type: 'access' } satisfies JwtPayload, {
         expiresIn: this.config.get('JWT_EXPIRES_IN', { infer: true }),
       }),
-      this.jwtService.signAsync({ ...basePayload, type: 'refresh' } satisfies JwtPayload, {
-        expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', { infer: true }),
-      }),
+      this.jwtService.signAsync(
+        { ...basePayload, type: 'refresh', pwv: passwordVersionOf(user) } satisfies JwtPayload,
+        { expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', { infer: true }) },
+      ),
     ]);
-    return { user, accessToken, refreshToken };
+    return { user: toAuthenticatedUser(user), accessToken, refreshToken };
   }
 }
 
 /** Ver o comentário de `pwv` em `jwt-payload.ts` — fragmento curto, não o hash inteiro (não precisa, só precisa mudar quando a senha muda). */
 function computePasswordVersion(passwordHash: string): string {
   return createHash('sha256').update(passwordHash).digest('hex').slice(0, 16);
+}
+
+/** `undefined` pra conta só-OAuth (sem senha própria — nada pra versionar). */
+function passwordVersionOf(user: User): string | undefined {
+  return user.passwordHash ? computePasswordVersion(user.passwordHash) : undefined;
 }
 
 function toAuthenticatedUser(user: User): AuthenticatedUser {

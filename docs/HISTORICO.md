@@ -17,7 +17,74 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
-_Nada no momento._
+### PIX na chave pessoal + "Esqueci a senha" completo + revisão do admin (30/09/2026)
+
+**Contexto/decisão do usuário**: a ASN ainda não tem CNPJ, então nada de
+gateway por enquanto — o pagamento é PIX direto na chave **pessoal da
+proprietária**, com confirmação **manual** pelo admin.
+
+- **PIX** (`PixPaymentGateway`, ativo quando `PIX_KEY` existe; sem ela
+  continua o `NullPaymentGateway`): gera o BR Code "copia e cola" do
+  padrão do Banco Central (`pix-brcode.ts`, função pura com CRC16 e
+  testes), com o valor exato do pedido e o código do pedido como `txid`
+  (aparece no extrato e casa pagamento ↔ pedido). A página do pedido
+  mostra QR Code (SVG gerado no servidor) + campo/botão de copiar. A
+  proprietária confere o extrato e marca "Pago" em `/admin/pedidos` —
+  tela que já existia. `createPaymentIntent` agora só devolve PIX
+  enquanto o pedido está `PENDING_PAYMENT` (pedido pago/cancelado não
+  pode continuar exibindo um QR válido). `NEXT_PUBLIC_PIX_ENABLED` liga
+  os textos do checkout, FAQ e rodapé (mesmo padrão do login Google).
+- **Esqueci a senha** (o fluxo base já existia desde o Módulo 5):
+  - link agora aparece também em `/admin/entrar` (estava preso ao mesmo
+    prop que esconde "Criar conta" — a dona da loja não tinha como
+    recuperar o acesso);
+  - envio real por **SMTP** (`SmtpEmailSender`, ex: Gmail com senha de
+    app) — o Resend sem domínio verificado só entrega pro dono da conta;
+    prioridade Resend → SMTP → console, com erro alto no boot em produção
+    sem provedor;
+  - redefinir a senha **derruba as sessões abertas em outros aparelhos**
+    (refresh token passou a carregar `pwv`, o mesmo mecanismo do link de
+    uso único) e manda e-mail "Sua senha foi alterada";
+  - tela de nova senha com confirmação + mostrar senha; admin volta pro
+    `/admin` depois de redefinir; tela de "link enviado" com reenviar e
+    aviso de spam; validação de formato de e-mail antes de enviar.
+- **Rodapé**: removido o `CNPJ 00.000.000/0001-00` de exemplo (agora
+  `NEXT_PUBLIC_LEGAL_ID`, opcional) e "Visa/Mastercard" (cartão não é
+  aceito); só aparece "Pix" quando ligado.
+
+**Bugs reais encontrados na revisão do admin (login fictício
+`e2e.admin@example.com`, CRUD testado no navegador)**:
+
+- **Preço do produto salvo 100x menor**: o formulário dizia converter
+  reais → centavos (`* 100`) mas não convertia — R$ 499,90 virava
+  R$ 5,00; na edição, o campo abria com o valor em centavos. Corrigido com
+  `reaisToCents`/`centsToReais` (testados) nas duas pontas.
+- **Seed nunca criava a conta admin de e2e**: `seedE2EFixtures()` existia
+  desde `454f5b1` mas nunca era chamada em `main()` — os specs e2e de
+  admin dependiam de uma conta que não existia.
+
+**Isolamento da Tech N (pedido do usuário: "API própria da ASN")**: o
+código já era separado, mas as portas padrão colidiam — a API da ASN e o
+bot da Tech N usavam ambos `3333`, e o site da ASN usava `3000`, já
+ocupada pelo bot (pm2). Além disso o `.env` local da API liberava no CORS
+a origem `localhost:3001` (o `site-api` da Tech N). Agora a ASN tem portas
+exclusivas — **site 3100, API 3400** — em defaults do código, `.env.example`,
+CI, Playwright e README; a origem da Tech N saiu do CORS. Banco/Redis já
+eram containers próprios; nenhum segredo é compartilhado entre os dois
+projetos (conferido sem expor valores).
+
+**"Site rodando perfeitamente" neste Windows**: o Controle Inteligente de
+Aplicativos (ligado em modo de bloqueio) passou a barrar `turbo.exe` e o
+SWC nativo do Next (binários sem assinatura) — `pnpm dev` quebrava com
+`spawn UNKNOWN` e o turbopack não sobe sem o SWC nativo. Sem desligar a
+proteção (ela só volta reinstalando o Windows): o `dev` da raiz virou
+`pnpm -r --parallel --stream run dev` (o `dev` do turbo não tinha
+`dependsOn`, então é equivalente) e o site roda com webpack, que aceita o
+fallback WASM do SWC. O `--watch` da API ficou estável (0 recompilações em
+1 min parado). **`next build` passou pela primeira vez neste ambiente**
+(32 páginas) e em produção as páginas respondem em 0,01–0,25 s; em dev,
+com WASM, as páginas do catálogo levam ~8–10 s (a API em si responde em
+<0,12 s).
 
 ---
 

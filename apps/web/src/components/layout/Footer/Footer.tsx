@@ -10,7 +10,13 @@ const INSTITUTIONAL_LINKS = [
   { label: 'Termos de Uso', href: '/termos-de-uso' },
 ];
 
-const PAYMENT_METHODS = ['Visa', 'Mastercard', 'Pix'];
+// Só o que a loja aceita de verdade hoje — listar bandeira de cartão sem
+// processar cartão é anunciar algo que o checkout não entrega.
+const PAYMENT_METHODS = process.env.NEXT_PUBLIC_PIX_ENABLED ? ['Pix'] : [];
+
+// Ex.: "CNPJ 12.345.678/0001-90". Vazio = linha some (nunca um número de
+// exemplo — um CNPJ falso no rodapé é pior que nenhum).
+const LEGAL_ID = process.env.NEXT_PUBLIC_LEGAL_ID;
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -64,27 +70,29 @@ export function Footer() {
           </ul>
         </div>
 
-        <div>
-          <Text size="sm" weight="semibold" className="mb-4 uppercase tracking-wider">
-            Pagamento
-          </Text>
-          <ul className="flex flex-wrap gap-2">
-            {PAYMENT_METHODS.map((method) => (
-              <li
-                key={method}
-                className="rounded border border-ink/15 px-2.5 py-1 text-xs text-ink-muted"
-              >
-                {method}
-              </li>
-            ))}
-          </ul>
-        </div>
+        {PAYMENT_METHODS.length > 0 && (
+          <div>
+            <Text size="sm" weight="semibold" className="mb-4 uppercase tracking-wider">
+              Pagamento
+            </Text>
+            <ul className="flex flex-wrap gap-2">
+              {PAYMENT_METHODS.map((method) => (
+                <li
+                  key={method}
+                  className="rounded border border-ink/15 px-2.5 py-1 text-xs text-ink-muted"
+                >
+                  {method}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </Container>
 
       <div className="border-t border-ink/10">
         <Container className="flex flex-col items-center justify-between gap-2 py-6 text-xs text-ink-muted sm:flex-row">
           <span>© {currentYear} ASN Supply. Todos os direitos reservados.</span>
-          <span>CNPJ 00.000.000/0001-00</span>
+          {LEGAL_ID && <span>{LEGAL_ID}</span>}
         </Container>
       </div>
     </footer>

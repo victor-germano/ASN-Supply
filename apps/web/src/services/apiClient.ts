@@ -1,6 +1,6 @@
 import type { ApiErrorBody } from '@asn/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1';
 const HTTP_STATUS_NO_CONTENT = 204;
 
 export class ApiError extends Error {

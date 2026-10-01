@@ -94,14 +94,14 @@ export function LoginForm({
           <label className={labelClassName + ' mb-0'} htmlFor="password">
             Senha
           </label>
-          {showCreateAccountLink && (
-            <Link
-              href="/esqueci-senha"
-              className="text-xs text-ink-muted underline underline-offset-4"
-            >
-              Esqueci minha senha
-            </Link>
-          )}
+          {/* Sempre visível — inclusive em `/admin/entrar`: a dona da loja
+              também precisa de um jeito de recuperar o acesso sozinha. */}
+          <Link
+            href="/esqueci-senha"
+            className="text-xs text-ink-muted underline underline-offset-4"
+          >
+            Esqueci minha senha
+          </Link>
         </div>
         <input
           id="password"

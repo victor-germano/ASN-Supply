@@ -15,8 +15,9 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Quais formas de pagamento vocês aceitam?',
-    answer:
-      'O pagamento online (cartão de crédito e PIX via gateway certificado) chega em breve. Por enquanto, ao confirmar o pedido no checkout ele fica registrado e aguardando — avisamos os próximos passos por e-mail assim que o pagamento estiver disponível.',
+    answer: process.env.NEXT_PUBLIC_PIX_ENABLED
+      ? 'Aceitamos PIX. Ao confirmar o pedido, mostramos o QR Code e o código copia e cola com o valor exato. Assim que identificamos o pagamento, o pedido muda para "Pago" e seguimos com a separação e o envio. Cartão de crédito chega em breve.'
+      : 'O pagamento online (cartão de crédito e PIX) chega em breve. Por enquanto, ao confirmar o pedido no checkout ele fica registrado e aguardando — avisamos os próximos passos por e-mail assim que o pagamento estiver disponível.',
   },
   {
     question: 'Como funciona a troca de tamanho?',

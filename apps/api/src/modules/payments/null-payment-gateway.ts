@@ -24,6 +24,7 @@ export class NullPaymentGateway extends PaymentGateway {
       method: null,
       providerReference: null,
       clientSecret: null,
+      pix: null,
       message:
         'Pagamento online ainda não está disponível. Em breve você poderá pagar com cartão, PIX ou Mercado Pago — o pedido já está registrado e aguardando.',
     };

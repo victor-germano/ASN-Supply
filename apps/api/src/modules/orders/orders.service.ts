@@ -144,8 +144,10 @@ export class OrdersService {
   }
 
   /**
-   * Etapa de pagamento do checkout — sempre "indisponível" até um gateway
-   * real ser plugado (Fase 4). Mesma checagem de posse de `findById`: o
+   * Etapa de pagamento do checkout. Só pede cobrança ao gateway enquanto o
+   * pedido está `PENDING_PAYMENT` — um pedido já pago ou cancelado não
+   * pode continuar exibindo um QR Code de PIX válido (o cliente pagaria
+   * duas vezes, ou pagaria um pedido cancelado). Mesma checagem de posse de `findById`: o
    * mesmo `:id` que `GET /orders/:id` já protege não pode ficar acessível
    * sem essa proteção só porque é outro verbo/rota — sem isso, qualquer
    * pessoa com o cuid de um pedido de terceiros conseguiria ler dados de
@@ -156,6 +158,21 @@ export class OrdersService {
     requestingUser?: AuthenticatedUser,
   ): Promise<PaymentIntentResult> {
     const order = await this.findById(orderId, requestingUser);
+    if (order.status !== 'PENDING_PAYMENT') {
+      return {
+        available: false,
+        method: null,
+        providerReference: null,
+        clientSecret: null,
+        pix: null,
+        message:
+          order.status === 'CANCELLED'
+            ? 'Este pedido foi cancelado — nenhum pagamento é necessário.'
+            : order.status === 'REFUND_REQUESTED' || order.status === 'REFUNDED'
+              ? 'Este pedido está em processo de reembolso.'
+              : 'Pagamento confirmado. Obrigado!',
+      };
+    }
     return this.paymentGateway.createPaymentIntent({
       orderId: order.id,
       orderCode: order.code,

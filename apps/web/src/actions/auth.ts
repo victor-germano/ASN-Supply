@@ -96,14 +96,18 @@ export async function forgotPasswordAction(email: string): Promise<void> {
   }
 }
 
+/** `redirectTo`: admin volta pro painel, cliente pra conta — a mesma tela de "esqueci a senha" serve os dois. */
 export async function resetPasswordAction(
   token: string,
   newPassword: string,
-): Promise<AuthActionResult> {
+): Promise<{ success: true; redirectTo: string } | { success: false; message: string }> {
   try {
     const result = await resetPassword(token, newPassword);
     await setSessionCookies(result.accessToken, result.refreshToken);
-    return { success: true };
+    return {
+      success: true,
+      redirectTo: result.user.role === 'ADMIN' ? '/admin' : '/conta/pedidos',
+    };
   } catch (error) {
     const message =
       error instanceof ApiError

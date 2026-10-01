@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney } from './formatMoney';
+import { centsToReais, formatMoney, reaisToCents } from './formatMoney';
+
+describe('reaisToCents / centsToReais', () => {
+  it('converte reais com centavos sem erro de float', () => {
+    expect(reaisToCents(499.9)).toBe(49990);
+    expect(reaisToCents(0.29)).toBe(29);
+    expect(reaisToCents(1299)).toBe(129900);
+  });
+
+  it('ida e volta preserva o valor', () => {
+    expect(reaisToCents(centsToReais(129990))).toBe(129990);
+  });
+});
 
 describe('formatMoney', () => {
   it('formata centavos como moeda brasileira', () => {

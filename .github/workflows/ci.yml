@@ -39,8 +39,8 @@ jobs:
       DATABASE_URL: postgresql://asn:asn@localhost:5432/asn_supply?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-only-secret-must-be-at-least-32-characters-long
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      NEXT_PUBLIC_API_URL: http://localhost:3333/v1
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      NEXT_PUBLIC_API_URL: http://localhost:3400/v1
     steps:
       - uses: actions/checkout@v4
 
@@ -107,13 +107,13 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-only-secret-must-be-at-least-32-characters-long
       NODE_ENV: production
-      PORT: 3333
+      PORT: 3400
       # Inline-adas no bundle do client NO MOMENTO DO BUILD (Next.js não lê
       # `NEXT_PUBLIC_*` em runtime) — precisam estar corretas ANTES do passo
       # de build abaixo, não só na hora de rodar os testes.
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      NEXT_PUBLIC_API_URL: http://localhost:3333/v1
-      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      NEXT_PUBLIC_API_URL: http://localhost:3400/v1
+      PLAYWRIGHT_BASE_URL: http://localhost:3100
       # Os dois apps já são subidos manualmente pelos passos abaixo (build de
       # produção, não `next dev`) — sem isso, o `webServer` do Playwright
       # tentaria subir um SEGUNDO `next dev` e colidiria com o processo que
@@ -158,7 +158,7 @@ jobs:
         run: |
           pnpm --filter @asn/api start &
           pnpm --filter @asn/web start &
-          npx wait-on --timeout 60000 http://localhost:3333/v1/health http://localhost:3000
+          npx wait-on --timeout 60000 http://localhost:3400/v1/health http://localhost:3100
 
       - name: Run Playwright tests
         run: pnpm --filter @asn/web test:e2e

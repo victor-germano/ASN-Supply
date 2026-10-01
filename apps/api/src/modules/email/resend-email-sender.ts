@@ -14,7 +14,7 @@ export class ResendEmailSender extends EmailSender {
   constructor(config: ConfigService<EnvConfig, true>) {
     super();
     this.client = new Resend(config.get('RESEND_API_KEY', { infer: true }));
-    this.from = config.get('EMAIL_FROM', { infer: true });
+    this.from = config.get('EMAIL_FROM', { infer: true }) ?? 'ASN Supply <onboarding@resend.dev>';
   }
 
   async send(params: SendEmailParams): Promise<void> {

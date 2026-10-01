@@ -986,6 +986,9 @@ async function main() {
   const reviewers = await seedReviewers();
   await seedReviewsAndQuestions(products, reviewers);
 
+  console.warn('Semeando conta admin e cupom de e2e...');
+  await seedE2EFixtures();
+
   console.warn('Seed concluído.');
 }
 

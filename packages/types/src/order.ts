@@ -123,17 +123,27 @@ export interface UpdateOrderInput {
 }
 
 /**
- * Resultado do "início de pagamento" — hoje sempre `available: false`
- * (`NullPaymentGateway`, Módulo 4: sem credenciais de Stripe/Mercado
- * Pago/PIX ainda). A forma do contrato já é a de uma resposta de gateway
- * real para não exigir mudança de shape no frontend quando um adapter de
- * verdade for plugado — só `available` vira `true` e os campos passam a vir
- * preenchidos.
+ * PIX "estático" com a chave da loja — sem gateway, sem confirmação
+ * automática: o cliente paga pelo app do banco e o admin marca o pedido
+ * como Pago ao ver o dinheiro entrar (ver `PixPaymentGateway` na API).
+ */
+export interface PixPaymentDetails {
+  /** BR Code "copia e cola" — o mesmo conteúdo do QR Code. */
+  copyPasteCode: string;
+  receiverName: string;
+  amountInCents: number;
+}
+
+/**
+ * Resultado do "início de pagamento". `available: false` quando nenhum
+ * meio está configurado (`NullPaymentGateway`) ou o pedido não está mais
+ * aguardando pagamento; `pix` preenchido quando o meio é PIX.
  */
 export interface PaymentIntentResult {
   available: boolean;
   method: PaymentMethod | null;
   providerReference: string | null;
   clientSecret: string | null;
+  pix: PixPaymentDetails | null;
   message: string;
 }

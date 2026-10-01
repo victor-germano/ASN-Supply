@@ -14,7 +14,7 @@ export class ConsoleEmailSender extends EmailSender {
 
   async send(params: SendEmailParams): Promise<void> {
     this.logger.warn(
-      `RESEND_API_KEY não configurada — e-mail para "${params.to}" (${params.subject}) não foi enviado de verdade. Conteúdo:\n${stripHtml(params.html)}`,
+      `Nenhum provedor de e-mail configurado (RESEND_API_KEY/SMTP_HOST) — e-mail para "${params.to}" (${params.subject}) não foi enviado de verdade. Conteúdo:\n${stripHtml(params.html)}`,
     );
   }
 }

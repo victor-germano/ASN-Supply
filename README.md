@@ -67,9 +67,31 @@ cp apps/web/.env.example apps/web/.env.local
 pnpm --filter @asn/api db:generate
 pnpm --filter @asn/api db:migrate:dev
 
-# 5. Subir tudo em modo dev (web em :3000, api em :3333)
+# 5. Subir tudo em modo dev (web em :3100, api em :3400)
 pnpm dev
 ```
+
+### Portas próprias
+
+A ASN usa portas exclusivas para rodar lado a lado com outros projetos na mesma
+máquina (a Tech N ocupa 3000, 3001, 3333 e 8080) sem que um site acabe falando
+com a API do outro:
+
+| Serviço  | Porta                                    |
+| -------- | ---------------------------------------- |
+| Site     | `3100`                                   |
+| API      | `3400`                                   |
+| Postgres | `5432` (container `asn-supply-postgres`) |
+| Redis    | `6379` (container `asn-supply-redis`)    |
+
+### Windows com "Controle Inteligente de Aplicativos"
+
+Esse recurso do Windows pode bloquear binários nativos sem assinatura (`turbo.exe`,
+compilador SWC do Next). Por isso `pnpm dev` não depende do turbo, e o site roda
+com webpack em vez de turbopack — o Next cai sozinho no compilador WASM quando o
+nativo é bloqueado. O primeiro carregamento em dev fica mais lento; o build de
+produção (`pnpm --filter @asn/web build && pnpm --filter @asn/web start`) não é
+afetado.
 
 ## Scripts principais
 

@@ -47,10 +47,19 @@ export function ReviewStep({ values, errorMessage, isSubmitting, onSubmit }: Rev
       </div>
 
       <div className="border border-ink/10 bg-bone-200 p-5">
-        <Text size="sm">
-          Pagamento online chega em breve. Ao confirmar, seu pedido fica registrado e aguardando —
-          você recebe os próximos passos assim que o pagamento estiver disponível.
-        </Text>
+        {/* Mesmo padrão de `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED`: precisa estar
+            ligada junto com `PIX_KEY` na API. */}
+        {process.env.NEXT_PUBLIC_PIX_ENABLED ? (
+          <Text size="sm">
+            Pagamento via <strong>PIX</strong>. Ao confirmar, mostramos o QR Code e o código copia e
+            cola com o valor exato do pedido.
+          </Text>
+        ) : (
+          <Text size="sm">
+            Pagamento online chega em breve. Ao confirmar, seu pedido fica registrado e aguardando —
+            você recebe os próximos passos assim que o pagamento estiver disponível.
+          </Text>
+        )}
       </div>
 
       {errorMessage && (

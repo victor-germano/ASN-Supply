@@ -16,7 +16,7 @@ import { RecentlyViewed } from '@/features/product/components/RecentlyViewed/Rec
 import { RegisterProductView } from '@/features/product/components/RecentlyViewed/RegisterProductView';
 import { formatMoney } from '@/lib/formatMoney';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3100';
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;

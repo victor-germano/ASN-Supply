@@ -42,14 +42,18 @@ function fakeUser(overrides: Partial<User> = {}): User {
   } as User;
 }
 
-function buildService(usersRepository: Partial<UsersRepository>) {
+function buildService(
+  usersRepository: Partial<UsersRepository>,
+  emailSender: EmailSender = fakeEmailSender(),
+) {
   const jwtService = new JwtService({ secret: JWT_SECRET });
-  return new AuthService(
-    usersRepository as UsersRepository,
-    jwtService,
-    fakeConfig(),
-    fakeEmailSender(),
-  );
+  return new AuthService(usersRepository as UsersRepository, jwtService, fakeConfig(), emailSender);
+}
+
+/** Extrai o `?token=` do link que `requestPasswordReset` mandou por e-mail. */
+function resetTokenFromEmail(emailSender: EmailSender): string {
+  const html = vi.mocked(emailSender.send).mock.calls[0]![0].html;
+  return /token=([^"&]+)/.exec(html)![1]!;
 }
 
 describe('AuthService', () => {
@@ -258,6 +262,88 @@ describe('AuthService', () => {
       const service = buildService({ findById: vi.fn().mockResolvedValue(null) });
 
       await expect(service.refresh(registerResult.refreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('esqueci a senha', () => {
+    it('não envia nada (e não falha) quando o e-mail não existe', async () => {
+      const emailSender = fakeEmailSender();
+      const service = buildService({ findByEmail: vi.fn().mockResolvedValue(null) }, emailSender);
+
+      await expect(service.requestPasswordReset('ninguem@example.com')).resolves.toBeUndefined();
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('não envia link para conta só-Google (sem senha própria)', async () => {
+      const emailSender = fakeEmailSender();
+      const service = buildService(
+        { findByEmail: vi.fn().mockResolvedValue(fakeUser({ passwordHash: null })) },
+        emailSender,
+      );
+
+      await service.requestPasswordReset('camila@example.com');
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('redefine a senha com o link do e-mail, avisa o usuário e invalida o link e as sessões antigas', async () => {
+      const oldHash = await bcrypt.hash('senha-antiga', 4);
+      let current = fakeUser({ passwordHash: oldHash });
+      const repo: Partial<UsersRepository> = {
+        findByEmail: vi.fn(async () => current),
+        findById: vi.fn(async () => current),
+        updatePasswordHash: vi.fn(async (_id: string, passwordHash: string) => {
+          current = { ...current, passwordHash };
+          return current;
+        }),
+      };
+
+      // Sessão aberta em outro aparelho antes da troca.
+      const oldSession = await buildService(repo).login({
+        email: current.email,
+        password: 'senha-antiga',
+      });
+
+      const emailSender = fakeEmailSender();
+      const service = buildService(repo, emailSender);
+      await service.requestPasswordReset(current.email);
+      const token = resetTokenFromEmail(emailSender);
+      expect(vi.mocked(emailSender.send).mock.calls[0]![0].to).toBe(current.email);
+
+      const result = await service.resetPassword(token, 'senha-nova-123');
+
+      expect(result.accessToken).toBeTruthy();
+      expect(await bcrypt.compare('senha-nova-123', current.passwordHash!)).toBe(true);
+      // Aviso de "senha alterada" vai pro mesmo e-mail.
+      expect(emailSender.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: current.email,
+          subject: expect.stringContaining('alterada'),
+        }),
+      );
+      // Link de uso único.
+      await expect(service.resetPassword(token, 'outra-senha-123')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      // Sessão antiga derrubada; a nova continua valendo.
+      await expect(service.refresh(oldSession.refreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh(result.refreshToken)).resolves.toBeTruthy();
+    });
+
+    it('rejeita um token de outro tipo usado como link de redefinição', async () => {
+      const user = fakeUser({ passwordHash: await bcrypt.hash('x', 4) });
+      const session = await buildService({
+        findByEmail: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(user),
+      }).register({
+        name: user.name,
+        email: user.email,
+        password: 'senha-forte-123',
+      });
+      const service = buildService({ findById: vi.fn().mockResolvedValue(user) });
+
+      await expect(service.resetPassword(session.accessToken, 'nova-senha-123')).rejects.toThrow(
         UnauthorizedException,
       );
     });

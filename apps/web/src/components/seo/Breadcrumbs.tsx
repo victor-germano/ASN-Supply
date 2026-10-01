@@ -6,7 +6,7 @@ export interface BreadcrumbItem {
   href?: string;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3100';
 
 /** Trilha de navegação visível + `BreadcrumbList` (schema.org) para rich snippets de busca. */
 export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {

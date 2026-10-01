@@ -7,6 +7,7 @@ import type { AdminProductDetail, Brand, Category, Collection, ProductGender } f
 import { Button, Heading, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { centsToReais, reaisToCents } from '@/lib/formatMoney';
 import { ImageUploadField } from '@/components/form/ImageUploadField';
 import type { AdminProductFormInput } from '@/services/adminProducts.service';
 import { createAdminProductAction, updateAdminProductAction } from '@/actions/adminProducts';
@@ -17,8 +18,10 @@ interface ProductFormValues {
   materialsText: string;
   technologiesText: string;
   gender: ProductGender;
-  priceInCents: number;
-  compareAtPriceInCents: number | null;
+  // Em reais (o que o admin digita) — convertido de/para centavos só nas
+  // bordas (`toFormValues` e `onSubmit`).
+  priceInReais: number;
+  compareAtPriceInReais: number | null;
   brandId: string;
   categoryId: string;
   collectionId: string;
@@ -48,8 +51,8 @@ function toFormValues(product?: AdminProductDetail): ProductFormValues {
       materialsText: '',
       technologiesText: '',
       gender: 'UNISSEX',
-      priceInCents: 0,
-      compareAtPriceInCents: null,
+      priceInReais: 0,
+      compareAtPriceInReais: null,
       brandId: '',
       categoryId: '',
       collectionId: '',
@@ -72,8 +75,9 @@ function toFormValues(product?: AdminProductDetail): ProductFormValues {
     materialsText: product.materials.join(', '),
     technologiesText: product.technologies.join(', '),
     gender: product.gender,
-    priceInCents: product.priceInCents,
-    compareAtPriceInCents: product.compareAtPriceInCents,
+    priceInReais: centsToReais(product.priceInCents),
+    compareAtPriceInReais:
+      product.compareAtPriceInCents === null ? null : centsToReais(product.compareAtPriceInCents),
     brandId: product.brandId,
     categoryId: product.categoryId,
     collectionId: product.collectionId ?? '',
@@ -100,7 +104,7 @@ function toFormValues(product?: AdminProductDetail): ProductFormValues {
 /**
  * Um único formulário serve criação e edição — `product` presente = edição
  * (PATCH), ausente = criação (POST). Preço em reais na tela, convertido
- * pra centavos só no submit (`Math.round(valor * 100)`) — mesma UX de
+ * pra centavos só no submit (`reaisToCents`) — mesma UX de
  * digitar dinheiro que o resto do site, o contrato com a API continua em
  * centavos.
  */
@@ -145,11 +149,11 @@ export function ProductForm({
           .map((s) => s.trim())
           .filter(Boolean),
         gender: values.gender,
-        priceInCents: Math.round(Number(values.priceInCents)),
+        priceInCents: reaisToCents(Number(values.priceInReais)),
         // `valueAsNumber` num campo vazio produz `NaN`, não `null`/`undefined`
         // — `Number.isFinite` cobre os dois casos de "sem valor" de uma vez.
-        compareAtPriceInCents: Number.isFinite(values.compareAtPriceInCents)
-          ? Math.round(Number(values.compareAtPriceInCents))
+        compareAtPriceInCents: Number.isFinite(values.compareAtPriceInReais)
+          ? reaisToCents(Number(values.compareAtPriceInReais))
           : null,
         brandId: values.brandId,
         categoryId: values.categoryId,
@@ -285,31 +289,31 @@ export function ProductForm({
         </div>
 
         <div>
-          <label className={labelClassName} htmlFor="priceInCents">
+          <label className={labelClassName} htmlFor="priceInReais">
             Preço (R$)
           </label>
           <input
-            id="priceInCents"
+            id="priceInReais"
             type="number"
             step="0.01"
             min={0}
             className={inputClassName}
-            {...register('priceInCents', { required: true, valueAsNumber: true, min: 0.01 })}
+            {...register('priceInReais', { required: true, valueAsNumber: true, min: 0.01 })}
           />
-          <FieldErrorText error={errors.priceInCents} />
+          <FieldErrorText error={errors.priceInReais} />
         </div>
 
         <div>
-          <label className={labelClassName} htmlFor="compareAtPriceInCents">
+          <label className={labelClassName} htmlFor="compareAtPriceInReais">
             Preço &ldquo;de&rdquo; (opcional, riscado)
           </label>
           <input
-            id="compareAtPriceInCents"
+            id="compareAtPriceInReais"
             type="number"
             step="0.01"
             min={0}
             className={inputClassName}
-            {...register('compareAtPriceInCents', { valueAsNumber: true })}
+            {...register('compareAtPriceInReais', { valueAsNumber: true })}
           />
         </div>
 

@@ -5,6 +5,7 @@ import { Badge, Container, Heading, Text, buttonStyles } from '@asn/ui';
 import { formatMoney } from '@/lib/formatMoney';
 import { CreditCardIcon, TruckIcon } from '@/components/icons';
 import { CancelOrderButton } from './CancelOrderButton';
+import { PixPayment } from './PixPayment';
 
 const STATUS_LABEL: Record<Order['status'], string> = {
   PENDING_PAYMENT: 'Aguardando pagamento',
@@ -167,20 +168,29 @@ export function OrderConfirmation({
               <Text size="sm" tone="muted" className="mb-4">
                 {paymentIntent.message}
               </Text>
-              <div className="flex flex-col gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <div
-                    key={method.label}
-                    aria-disabled="true"
-                    className="flex items-center justify-between border border-ink/10 px-4 py-2.5 opacity-50"
-                  >
-                    <Text size="sm">{method.label}</Text>
-                    <Text size="xs" tone="muted" className="uppercase tracking-wider">
-                      Em breve
-                    </Text>
+              {paymentIntent.pix ? (
+                <PixPayment pix={paymentIntent.pix} />
+              ) : (
+                // Lista "em breve" só faz sentido enquanto o pedido ainda
+                // espera pagamento e nenhum meio está configurado — num
+                // pedido já pago ela confundiria.
+                order.status === 'PENDING_PAYMENT' && (
+                  <div className="flex flex-col gap-2">
+                    {PAYMENT_METHODS.map((method) => (
+                      <div
+                        key={method.label}
+                        aria-disabled="true"
+                        className="flex items-center justify-between border border-ink/10 px-4 py-2.5 opacity-50"
+                      >
+                        <Text size="sm">{method.label}</Text>
+                        <Text size="xs" tone="muted" className="uppercase tracking-wider">
+                          Em breve
+                        </Text>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )
+              )}
             </div>
           </div>
 

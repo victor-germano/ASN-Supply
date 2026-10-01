@@ -12,7 +12,7 @@ describe('validateEnv', () => {
     const result = validateEnv(validConfig);
 
     expect(result.NODE_ENV).toBe('development');
-    expect(result.PORT).toBe(3333);
+    expect(result.PORT).toBe(3400);
     expect(result.JWT_EXPIRES_IN).toBe('15m');
   });
 

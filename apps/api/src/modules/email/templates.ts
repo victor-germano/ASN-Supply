@@ -4,14 +4,17 @@
  * reaproveitada de `packages/config/tailwind/tokens.js` (ink/olive/bone),
  * sem depender do pacote em runtime (a API não importa Tailwind).
  */
-function layout(bodyHtml: string): string {
+function layout(
+  bodyHtml: string,
+  footerHtml = 'Se você não pediu isto, pode ignorar este e-mail com segurança.',
+): string {
   return `
     <div style="background-color:#F7F5F0;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;">
       <div style="max-width:480px;margin:0 auto;background-color:#FDFCFA;border:1px solid #E6E0D4;padding:32px;">
         <p style="font-size:20px;letter-spacing:0.05em;color:#16160F;margin:0 0 24px;">ASN SUPPLY</p>
         ${bodyHtml}
         <p style="font-size:12px;color:#6b6a5f;margin-top:32px;border-top:1px solid #E6E0D4;padding-top:16px;">
-          Se você não pediu isto, pode ignorar este e-mail com segurança.
+          ${footerHtml}
         </p>
       </div>
     </div>
@@ -28,8 +31,26 @@ export function passwordResetEmail(resetUrl: string): { subject: string; html: s
     html: layout(`
       <p style="font-size:15px;color:#16160F;">Recebemos um pedido para redefinir sua senha.</p>
       ${button(resetUrl, 'Redefinir senha')}
-      <p style="font-size:13px;color:#6b6a5f;">Este link expira em 30 minutos.</p>
+      <p style="font-size:13px;color:#6b6a5f;">Este link expira em 30 minutos e só pode ser usado uma vez.</p>
     `),
+  };
+}
+
+/**
+ * Enviado depois de uma redefinição bem-sucedida. O rodapé padrão ("pode
+ * ignorar") seria o conselho errado aqui — se não foi o dono da conta,
+ * ignorar é exatamente o que ele não deve fazer.
+ */
+export function passwordChangedEmail(forgotPasswordUrl: string): { subject: string; html: string } {
+  return {
+    subject: 'Sua senha foi alterada — ASN Supply',
+    html: layout(
+      `
+      <p style="font-size:15px;color:#16160F;">A senha da sua conta acabou de ser alterada.</p>
+      <p style="font-size:15px;color:#16160F;">Por segurança, todos os outros aparelhos conectados à sua conta foram desconectados.</p>
+    `,
+      `Não foi você? <a href="${forgotPasswordUrl}" style="color:#16160F;">Redefina sua senha agora</a> e responda este e-mail para falar com a gente.`,
+    ),
   };
 }
 

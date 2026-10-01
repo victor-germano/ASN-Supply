@@ -18,7 +18,7 @@ interface ForgotPasswordFormValues {
  * existe). Mesma defesa que a API já aplica em `requestPasswordReset`.
  */
 export function ForgotPasswordForm() {
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
     register,
@@ -29,19 +29,38 @@ export function ForgotPasswordForm() {
   async function onSubmit(values: ForgotPasswordFormValues) {
     setIsSubmitting(true);
     try {
-      await forgotPasswordAction(values.email);
-      setIsSubmitted(true);
+      await forgotPasswordAction(values.email.trim());
+      setSubmittedEmail(values.email.trim());
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  if (isSubmitted) {
+  if (submittedEmail) {
     return (
-      <Text size="sm" className="text-center">
-        Se esse e-mail estiver cadastrado, você vai receber um link para redefinir sua senha em
-        instantes.
-      </Text>
+      <div className="flex flex-col gap-4 text-center">
+        <Text size="sm">
+          Se <strong>{submittedEmail}</strong> estiver cadastrado, você vai receber um link para
+          redefinir sua senha em instantes.
+        </Text>
+        <Text size="sm" tone="muted">
+          O link vale por 30 minutos. Não chegou? Confira a caixa de spam ou lixo eletrônico.
+        </Text>
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth
+          isLoading={isSubmitting}
+          onClick={() => onSubmit({ email: submittedEmail })}
+        >
+          Enviar de novo
+        </Button>
+        <Text size="sm" tone="muted">
+          <Link href="/entrar" className="text-ink underline underline-offset-4">
+            Voltar ao login
+          </Link>
+        </Text>
+      </div>
     );
   }
 
@@ -56,7 +75,13 @@ export function ForgotPasswordForm() {
           type="email"
           autoComplete="email"
           className={inputClassName}
-          {...register('email', { required: 'Informe seu e-mail.' })}
+          {...register('email', {
+            required: 'Informe seu e-mail.',
+            // A action engole qualquer erro da API (ver `forgotPasswordAction`)
+            // — sem esta checagem, um e-mail digitado errado mostraria a
+            // mesma tela de "enviado" sem nunca chegar nada.
+            pattern: { value: /^\S+@\S+\.\S+$/, message: 'Informe um e-mail válido.' },
+          })}
         />
         <FieldErrorText error={errors.email} />
       </div>
