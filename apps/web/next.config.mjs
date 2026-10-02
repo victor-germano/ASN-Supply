@@ -9,6 +9,9 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: '*.amazonaws.com' },
+      // Imagens enviadas pelo painel em desenvolvimento, sem Cloudinary
+      // (`LocalDiskImageUploader` na API).
+      { protocol: 'http', hostname: 'localhost', port: '3400', pathname: '/uploads/**' },
     ],
     // Habilitado só para os SVGs estáticos de arte abstrata em
     // public/seed-art (gerados por nós, confiáveis) — usados como capa de

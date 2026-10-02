@@ -43,3 +43,6 @@ apps/api/prisma/generated/
 
 # typescript incremental build cache
 *.tsbuildinfo
+
+# Imagens enviadas pelo painel admin em desenvolvimento (LocalDiskImageUploader)
+apps/api/uploads/

@@ -38,6 +38,16 @@ const E2E_ADMIN_EMAIL = 'e2e.admin@example.com';
 const E2E_ADMIN_PASSWORD = 'SenhaAdminE2E123!';
 const E2E_COUPON_CODE = 'E2E10';
 
+/**
+ * Admin de DEMONSTRAÇÃO, para explorar o painel à mão — separado do admin
+ * de e2e de propósito (os testes trocam a senha daquele no fluxo de
+ * "esqueci a senha"). `@example.com`: domínio reservado pra exemplos (nunca
+ * é de ninguém) e limpo/recriado a cada `db:seed`, como o resto dos dados
+ * fictícios. O seed nunca roda em produção.
+ */
+const DEMO_ADMIN_EMAIL = 'admin@example.com';
+const DEMO_ADMIN_PASSWORD = 'AsnAdmin2026!';
+
 /** Pool de composições abstratas próprias (public/seed-art/art-01.svg .. art-08.svg em apps/web). */
 const ART_COUNT = 8;
 
@@ -79,7 +89,7 @@ async function resetCatalogData(): Promise<void> {
   await prisma.coupon.deleteMany({ where: { code: E2E_COUPON_CODE } });
 }
 
-/** Conta admin + cupom fixos usados pelos testes e2e (ver comentário no topo do arquivo). */
+/** Contas admin (e2e e demonstração) + cupom fixos — ver comentários no topo do arquivo. */
 async function seedE2EFixtures(): Promise<void> {
   const passwordHash = await bcrypt.hash(E2E_ADMIN_PASSWORD, BCRYPT_ROUNDS);
   await prisma.user.create({
@@ -96,6 +106,15 @@ async function seedE2EFixtures(): Promise<void> {
       code: E2E_COUPON_CODE,
       percentageOff: 10,
       isActive: true,
+    },
+  });
+  await prisma.user.create({
+    data: {
+      name: 'Administração ASN (demo)',
+      email: DEMO_ADMIN_EMAIL,
+      passwordHash: await bcrypt.hash(DEMO_ADMIN_PASSWORD, BCRYPT_ROUNDS),
+      role: 'ADMIN',
+      emailVerifiedAt: new Date(),
     },
   });
 }
