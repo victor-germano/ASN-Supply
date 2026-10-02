@@ -1,4 +1,6 @@
-import type { Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 /**
@@ -35,13 +37,44 @@ export async function signUp(page: Page, name = 'Cliente E2E'): Promise<string> 
   return email;
 }
 
+/**
+ * Sessão admin salva em disco e reaproveitada entre specs (e entre os
+ * workers paralelos). Sem isso, cada spec fazia um login novo e a suíte
+ * estourava o limite anti-força-bruta de `POST /auth/login` (5/min por
+ * IP) — o limite está certo; quem não deveria logar 6 vezes por minuto
+ * eram os testes. `test-results/` já é ignorado pelo git.
+ */
+const ADMIN_STORAGE_STATE = path.join(__dirname, '..', 'test-results', '.admin-session.json');
+const ADMIN_SESSION_MAX_AGE_MS = 10 * 60 * 1000;
+
 /** Login com a conta admin semeada — mesmo `LoginForm` do cliente, só que via `/admin/entrar`. */
 export async function loginAsAdmin(page: Page): Promise<void> {
+  if (await restoreAdminSession(page)) return;
+
   await page.goto('/admin/entrar');
   await page.getByLabel('E-mail').fill(E2E_ADMIN_EMAIL);
   await page.getByLabel('Senha').fill(E2E_ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL('/admin');
+
+  fs.mkdirSync(path.dirname(ADMIN_STORAGE_STATE), { recursive: true });
+  await page.context().storageState({ path: ADMIN_STORAGE_STATE });
+}
+
+async function restoreAdminSession(page: Page): Promise<boolean> {
+  try {
+    const { mtimeMs } = fs.statSync(ADMIN_STORAGE_STATE);
+    if (Date.now() - mtimeMs > ADMIN_SESSION_MAX_AGE_MS) return false;
+    const state = JSON.parse(fs.readFileSync(ADMIN_STORAGE_STATE, 'utf8')) as {
+      cookies: Parameters<BrowserContext['addCookies']>[0];
+    };
+    await page.context().addCookies(state.cookies);
+    await page.goto('/admin');
+    // Sessão salva inválida (banco re-semeado, por ex.) cai no login normal.
+    return new URL(page.url()).pathname === '/admin';
+  } catch {
+    return false;
+  }
 }
 
 /** Abre o primeiro produto da listagem e adiciona 1 unidade ao carrinho (primeiro tamanho disponível). */

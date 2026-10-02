@@ -24,17 +24,17 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  passwordHash  String?
-  role          Role      @default(CUSTOMER)
-  avatarUrl     String?
-  googleId      String?   @unique
-  appleId       String?   @unique
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String?
+  role            Role      @default(CUSTOMER)
+  avatarUrl       String?
+  googleId        String?   @unique
+  appleId         String?   @unique
   emailVerifiedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   addresses     Address[]
   orders        Order[]
@@ -46,22 +46,22 @@ model User {
 }
 
 model Address {
-  id           String  @id @default(cuid())
-  userId       String
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label        String
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String
   recipientName String
-  street       String
-  number       String
-  complement   String?
-  neighborhood String
-  city         String
-  state        String
-  zipCode      String
-  isDefault    Boolean @default(false)
-  createdAt    DateTime @default(now())
+  street        String
+  number        String
+  complement    String?
+  neighborhood  String
+  city          String
+  state         String
+  zipCode       String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  orders       Order[]
+  orders Order[]
 
   @@index([userId])
   @@map("addresses")
@@ -72,28 +72,28 @@ model Address {
 // ---------------------------------------------------------------------------
 
 model Brand {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String    @unique
+  slug      String   @unique
   logoUrl   String?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  products  Product[]
+  products Product[]
 
   @@map("brands")
 }
 
 model Category {
-  id        String     @id @default(cuid())
-  name      String
-  slug      String     @unique
-  parentId  String?
-  parent    Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
-  children  Category[] @relation("CategoryToCategory")
-  imageUrl  String?
-  imageAlt  String?
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToCategory")
+  imageUrl String?
+  imageAlt String?
 
-  products  Product[]
+  products Product[]
 
   @@map("categories")
 }
@@ -108,7 +108,7 @@ model Collection {
   launchedAt    DateTime?
   createdAt     DateTime  @default(now())
 
-  products    Product[]
+  products Product[]
 
   @@map("collections")
 }
@@ -121,45 +121,45 @@ enum ProductGender {
 }
 
 model Product {
-  id             String        @id @default(cuid())
-  slug           String        @unique
-  name           String
-  description    String
-  materials      String[]
-  technologies   String[]
-  gender         ProductGender @default(UNISSEX)
-  priceInCents   Int
+  id                    String        @id @default(cuid())
+  slug                  String        @unique
+  name                  String
+  description           String
+  materials             String[]
+  technologies          String[]
+  gender                ProductGender @default(UNISSEX)
+  priceInCents          Int
   compareAtPriceInCents Int?
-  videoUrl       String?
-  has360View     Boolean       @default(false)
-  isNewArrival   Boolean       @default(false)
-  isBestSeller   Boolean       @default(false)
-  isPublished    Boolean       @default(false)
-  publishedAt    DateTime?
-  sizeGuideId    String?
+  videoUrl              String?
+  has360View            Boolean       @default(false)
+  isNewArrival          Boolean       @default(false)
+  isBestSeller          Boolean       @default(false)
+  isPublished           Boolean       @default(false)
+  publishedAt           DateTime?
+  sizeGuideId           String?
   /// Denormalizado a partir de `reviews` (recalculado a cada review criada/removida) —
   /// evita agregação em toda listagem e permite ordenar "Melhor avaliados" no banco,
   /// com paginação real, em vez de ordenar em memória após buscar tudo.
-  averageRating  Float?
-  reviewCount    Int           @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  averageRating         Float?
+  reviewCount           Int           @default(0)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
-  brandId        String
-  brand          Brand         @relation(fields: [brandId], references: [id])
-  categoryId     String
-  category       Category      @relation(fields: [categoryId], references: [id])
-  collectionId   String?
-  collection     Collection?   @relation(fields: [collectionId], references: [id])
+  brandId      String
+  brand        Brand       @relation(fields: [brandId], references: [id])
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id])
+  collectionId String?
+  collection   Collection? @relation(fields: [collectionId], references: [id])
 
-  images         ProductImage[]
-  variants       ProductVariant[]
-  reviews        Review[]
-  questions      ProductQuestion[]
-  wishlistItems  WishlistItem[]
-  orderItems     OrderItem[]
-  cartItems      CartItem[]
-  lookItems      LookItem[]
+  images        ProductImage[]
+  variants      ProductVariant[]
+  reviews       Review[]
+  questions     ProductQuestion[]
+  wishlistItems WishlistItem[]
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  lookItems     LookItem[]
 
   @@index([brandId])
   @@index([categoryId])
@@ -180,30 +180,30 @@ model Product {
 // dependência de acesso de terceiros ainda não obtido — ver
 // scripts/add-look-item.ts para cadastrar itens reais.
 model LookItem {
-  id         String   @id @default(cuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  platform   String
-  title      String
-  imageUrl   String
-  priceLabel String
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  platform    String
+  title       String
+  imageUrl    String
+  priceLabel  String
   externalUrl String
-  position   Int      @default(0)
-  createdAt  DateTime @default(now())
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
 
   @@index([productId, position])
   @@map("look_items")
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  alt       String
-  width     Int
-  height    Int
-  position  Int     @default(0)
+  id           String  @id @default(cuid())
+  productId    String
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url          String
+  alt          String
+  width        Int
+  height       Int
+  position     Int     @default(0)
   isHoverImage Boolean @default(false)
   /// Frame de giro 360° (Product.has360View) — reaproveita esta tabela em vez
   /// de uma dedicada porque é a mesma natureza de dado (imagem + posição),
@@ -215,18 +215,18 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id             String  @id @default(cuid())
-  productId      String
-  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku            String  @unique
-  size           String
-  colorName      String
-  colorHex       String
-  stockQuantity  Int     @default(0)
+  id                   String  @id @default(cuid())
+  productId            String
+  product              Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku                  String  @unique
+  size                 String
+  colorName            String
+  colorHex             String
+  stockQuantity        Int     @default(0)
   priceOverrideInCents Int?
 
-  cartItems      CartItem[]
-  orderItems     OrderItem[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
 
   @@unique([productId, size, colorName])
   @@index([productId])
@@ -286,28 +286,28 @@ model WishlistItem {
 // ---------------------------------------------------------------------------
 
 model Cart {
-  id         String     @id @default(cuid())
-  userId     String     @unique
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  couponId   String?
-  coupon     Coupon?    @relation(fields: [couponId], references: [id])
-  updatedAt  DateTime   @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couponId  String?
+  coupon    Coupon?  @relation(fields: [couponId], references: [id])
+  updatedAt DateTime @updatedAt
 
-  items      CartItem[]
+  items CartItem[]
 
   @@map("carts")
 }
 
 model CartItem {
-  id         String         @id @default(cuid())
-  cartId     String
-  cart       Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  productId  String
-  product    Product        @relation(fields: [productId], references: [id])
-  variantId  String
-  variant    ProductVariant @relation(fields: [variantId], references: [id])
-  quantity   Int            @default(1)
-  addedAt    DateTime       @default(now())
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int            @default(1)
+  addedAt   DateTime       @default(now())
 
   @@unique([cartId, variantId])
   @@map("cart_items")
@@ -320,12 +320,12 @@ model Coupon {
   amountOffInCents Int?
   minOrderInCents  Int?
   expiresAt        DateTime?
-  maxRedemptions    Int?
-  redemptionCount   Int       @default(0)
-  isActive          Boolean   @default(true)
+  maxRedemptions   Int?
+  redemptionCount  Int       @default(0)
+  isActive         Boolean   @default(true)
 
-  carts            Cart[]
-  orders           Order[]
+  carts  Cart[]
+  orders Order[]
 
   @@map("coupons")
 }
@@ -335,18 +335,18 @@ model Coupon {
 // ---------------------------------------------------------------------------
 
 model Banner {
-  id             String    @id @default(cuid())
-  title          String
-  subtitle       String?
-  ctaLabel       String
-  ctaHref        String
+  id              String    @id @default(cuid())
+  title           String
+  subtitle        String?
+  ctaLabel        String
+  ctaHref         String
   imageUrlDesktop String
-  imageUrlMobile String
-  position       Int       @default(0)
-  isActive       Boolean   @default(true)
-  startsAt       DateTime?
-  endsAt         DateTime?
-  createdAt      DateTime  @default(now())
+  imageUrlMobile  String
+  position        Int       @default(0)
+  isActive        Boolean   @default(true)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime  @default(now())
 
   @@index([isActive, position])
   @@map("banners")
@@ -357,22 +357,22 @@ model Banner {
 /// nesse ponto, a implementação de SocialPostRepository passa a consultar a
 /// Instagram Graph API em vez desta tabela, sem alterar o restante da app.
 model SocialPost {
-  id         String   @id @default(cuid())
-  imageUrl   String
-  permalink  String
-  caption    String?
-  position   Int      @default(0)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  imageUrl  String
+  permalink String
+  caption   String?
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   @@index([isActive, position])
   @@map("social_posts")
 }
 
 model NewsletterSubscriber {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  subscribedAt  DateTime  @default(now())
+  id             String    @id @default(cuid())
+  email          String    @unique
+  subscribedAt   DateTime  @default(now())
   unsubscribedAt DateTime?
 
   @@map("newsletter_subscribers")
@@ -421,15 +421,15 @@ enum ShippingMethod {
 /// entregue de fato — um endereço salvo pode ser editado/apagado depois da
 /// compra, o pedido não pode mudar retroativamente por causa disso.
 model Order {
-  id                 String        @id @default(cuid())
-  code               String        @unique
-  userId             String?
-  user               User?         @relation(fields: [userId], references: [id])
-  guestName          String
-  guestEmail         String
-  guestPhone         String
-  addressId          String?
-  address            Address?      @relation(fields: [addressId], references: [id])
+  id                    String         @id @default(cuid())
+  code                  String         @unique
+  userId                String?
+  user                  User?          @relation(fields: [userId], references: [id])
+  guestName             String
+  guestEmail            String
+  guestPhone            String
+  addressId             String?
+  address               Address?       @relation(fields: [addressId], references: [id])
   shippingRecipientName String
   shippingStreet        String
   shippingNumber        String
@@ -438,27 +438,27 @@ model Order {
   shippingCity          String
   shippingState         String
   shippingZipCode       String
-  shippingMethod     ShippingMethod @default(STANDARD)
-  status             OrderStatus   @default(PENDING_PAYMENT)
-  subtotalInCents    Int
-  shippingCostInCents Int
-  discountInCents    Int           @default(0)
-  totalInCents       Int
-  couponId           String?
-  coupon             Coupon?       @relation(fields: [couponId], references: [id])
-  installments       Int           @default(1)
-  createdAt          DateTime      @default(now())
-  estimatedDeliveryAt DateTime?
+  shippingMethod        ShippingMethod @default(STANDARD)
+  status                OrderStatus    @default(PENDING_PAYMENT)
+  subtotalInCents       Int
+  shippingCostInCents   Int
+  discountInCents       Int            @default(0)
+  totalInCents          Int
+  couponId              String?
+  coupon                Coupon?        @relation(fields: [couponId], references: [id])
+  installments          Int            @default(1)
+  createdAt             DateTime       @default(now())
+  estimatedDeliveryAt   DateTime?
   // Rastreio — preenchido manualmente pelo admin (Painel Admin, Módulo 6);
   // sem integração com transportadora real ainda (nenhuma API de Correios/
   // Melhor Envio configurada), mesmo espírito de `calculateShippingCostInCents`
   // (tabela fixa) e `NullPaymentGateway`: base pronta, integração real depois
   // troca só o adapter, não o schema nem o resto do fluxo.
-  trackingCode       String?
-  trackingUrl        String?
+  trackingCode          String?
+  trackingUrl           String?
 
-  items              OrderItem[]
-  payment            Payment?
+  items   OrderItem[]
+  payment Payment?
 
   @@index([userId])
   @@index([guestEmail])
@@ -470,20 +470,24 @@ model Order {
 /// mostrar o que foi de fato comprado, mesmo que o produto seja renomeado,
 /// tenha as fotos trocadas ou (por Restrict na FK) nunca possa ser apagado.
 model OrderItem {
-  id                String         @id @default(cuid())
-  orderId           String
-  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId         String
-  product           Product        @relation(fields: [productId], references: [id])
-  variantId         String
-  variant           ProductVariant @relation(fields: [variantId], references: [id])
-  productName       String
-  productSlug       String
-  imageUrl          String
-  size              String
-  colorName         String
-  quantity          Int
-  unitPriceInCents  Int
+  id               String          @id @default(cuid())
+  orderId          String
+  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Nulos depois que o produto/variante é excluído ou editado no admin —
+  /// o pedido continua íntegro pela cópia abaixo (nome, slug, imagem,
+  /// tamanho, cor, preço no momento da compra). Sem `SetNull`, um único
+  /// pedido travava para sempre a edição e a exclusão do produto.
+  productId        String?
+  product          Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId        String?
+  variant          ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productName      String
+  productSlug      String
+  imageUrl         String
+  size             String
+  colorName        String
+  quantity         Int
+  unitPriceInCents Int
 
   @@index([orderId])
   @@map("order_items")

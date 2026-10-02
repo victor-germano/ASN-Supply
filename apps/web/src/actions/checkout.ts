@@ -4,6 +4,7 @@ import type { CouponPreview, CreateOrderInput, Order, PaymentIntentResult } from
 import { ApiError } from '@/services/apiClient';
 import { createOrder, getPaymentIntent } from '@/services/order.service';
 import { validateCoupon } from '@/services/coupon.service';
+import { PAYMENT_UNAVAILABLE_FALLBACK } from '@/lib/paymentFallback';
 
 export type ValidateCouponActionResult =
   { success: true; coupon: CouponPreview } | { success: false; message: string };
@@ -44,15 +45,6 @@ export async function createOrderAction(input: CreateOrderInput): Promise<Create
     return { success: false, message };
   }
 }
-
-const PAYMENT_UNAVAILABLE_FALLBACK: PaymentIntentResult = {
-  available: false,
-  method: null,
-  providerReference: null,
-  clientSecret: null,
-  pix: null,
-  message: 'Não foi possível consultar o status do pagamento agora.',
-};
 
 export async function getPaymentIntentAction(orderId: string): Promise<PaymentIntentResult> {
   try {

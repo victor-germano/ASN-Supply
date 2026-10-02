@@ -63,6 +63,11 @@ function skuFor(productSlug: string, colorName: string, size: string): string {
   return `${productSlug}-${slugify(colorName)}-${slugify(size)}`;
 }
 
+/** Mesma identidade da constraint `@@unique([productId, size, colorName])` do schema. */
+function variantKey(variant: { colorName: string; size: string }): string {
+  return `${variant.colorName}\u0000${variant.size}`;
+}
+
 @Injectable()
 export class AdminProductsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -161,10 +166,17 @@ export class AdminProductsRepository {
   }
 
   /**
-   * `images`/`variants`, quando presentes no PATCH, substituem a coleção
-   * inteira (delete-all + recreate) em vez de fazer diff item a item — o
-   * formulário de edição sempre manda o array completo (nunca um delta),
-   * então isto é mais simples e não deixa imagem/variante órfã pra trás.
+   * `images`, quando presente no PATCH, substitui a coleção inteira
+   * (delete-all + recreate) — nada aponta pra uma imagem por ID.
+   *
+   * `variants` NÃO: variantes são referenciadas por carrinhos e pedidos,
+   * então recriar todas a cada salvamento trocava os IDs — todo carrinho
+   * aberto com aquele produto quebrava ("itens não existem mais") só
+   * porque o admin corrigiu um preço. O formulário sempre manda o array
+   * completo; aqui ele é casado com o existente por cor + tamanho (a
+   * mesma chave única do banco): o que continua é atualizado mantendo o
+   * ID, o que é novo é criado, o que saiu é excluído.
+   *
    * `undefined` (campo omitido do PATCH) não mexe na coleção existente.
    */
   async update(id: string, dto: UpdateProductDto): Promise<AdminProductDetail> {
@@ -179,7 +191,43 @@ export class AdminProductsRepository {
         await tx.productImage.deleteMany({ where: { productId: id } });
       }
       if (dto.variants) {
-        await tx.productVariant.deleteMany({ where: { productId: id } });
+        const existing = await tx.productVariant.findMany({
+          where: { productId: id },
+          select: { id: true, size: true, colorName: true },
+        });
+        const existingIdByKey = new Map(existing.map((v) => [variantKey(v), v.id]));
+        const incomingKeys = new Set(dto.variants.map(variantKey));
+
+        // Exclusões primeiro: libera o `sku` (único no banco) caso uma
+        // variante removida e uma nova gerem o mesmo código.
+        const removedIds = existing
+          .filter((v) => !incomingKeys.has(variantKey(v)))
+          .map((v) => v.id);
+        if (removedIds.length > 0) {
+          await tx.productVariant.deleteMany({ where: { id: { in: removedIds } } });
+        }
+
+        for (const variant of dto.variants) {
+          const existingId = existingIdByKey.get(variantKey(variant));
+          if (existingId) {
+            await tx.productVariant.update({
+              where: { id: existingId },
+              data: {
+                colorHex: variant.colorHex,
+                stockQuantity: variant.stockQuantity,
+                priceOverrideInCents: variant.priceOverrideInCents ?? null,
+              },
+            });
+          } else {
+            await tx.productVariant.create({
+              data: {
+                ...variant,
+                productId: id,
+                sku: skuFor(current.slug, variant.colorName, variant.size),
+              },
+            });
+          }
+        }
       }
       return tx.product.update({
         where: { id },
@@ -199,14 +247,6 @@ export class AdminProductsRepository {
           // sobrescreve a cada edição de um produto já publicado).
           publishedAt: !current.isPublished && willBePublished ? new Date() : undefined,
           images: dto.images ? { create: dto.images } : undefined,
-          variants: dto.variants
-            ? {
-                create: dto.variants.map((variant) => ({
-                  ...variant,
-                  sku: skuFor(current.slug, variant.colorName, variant.size),
-                })),
-              }
-            : undefined,
         },
         include: detailInclude,
       });

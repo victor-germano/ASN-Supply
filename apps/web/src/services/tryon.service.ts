@@ -1,8 +1,8 @@
 import type { TryOnAnalysisInput, TryOnAnalysisResult } from '@asn/types';
-import { apiFetch } from './apiClient';
+import { serverFetch } from './serverFetch';
 
 export function analyzeTryOn(input: TryOnAnalysisInput): Promise<TryOnAnalysisResult> {
-  return apiFetch<TryOnAnalysisResult>('/tryon/analyze', {
+  return serverFetch<TryOnAnalysisResult>('/tryon/analyze', {
     init: { method: 'POST', body: JSON.stringify(input) },
   });
 }

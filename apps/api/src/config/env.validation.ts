@@ -69,6 +69,13 @@ const envSchema = z
     // uma checagem nossa) — dev/CI não dependem de conta no Sentry.
     SENTRY_DSN: z.string().optional(),
     CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3100'),
+    // Segredo compartilhado com o servidor do site (mesmo valor nos dois
+    // `.env`) — sem ele, o rate limit trata a loja inteira como um único
+    // visitante (ver `common/guards/throttle-identity.ts`).
+    INTERNAL_API_KEY: z
+      .string()
+      .min(32, 'INTERNAL_API_KEY deve ter ao menos 32 caracteres')
+      .optional(),
     // LEGADO — não usada mais. O acesso administrativo agora é Role.ADMIN +
     // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário
     // em `apps/api/src/modules/admin/admin.module.ts`.

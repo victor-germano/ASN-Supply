@@ -36,10 +36,11 @@ export interface ShippingAddress {
 
 export interface OrderItem {
   id: string;
-  productId: string;
+  /** `null` quando o produto/variante foi excluído do catálogo depois da compra — o resto do item é uma cópia e continua valendo. */
+  productId: string | null;
   productSlug: string;
   productName: string;
-  variantId: string;
+  variantId: string | null;
   imageUrl: string;
   size: string;
   colorName: string;

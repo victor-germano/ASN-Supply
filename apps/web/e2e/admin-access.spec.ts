@@ -34,7 +34,8 @@ test.describe('Acesso administrativo', () => {
     await loginAsAdmin(page);
     await expect(page.getByText('Faturamento')).toBeVisible();
     await expect(page.getByText('Aguardando pagamento').first()).toBeVisible();
-    await expect(page.getByText('Clientes')).toBeVisible();
+    // O card do painel (não o link "Clientes" do menu, que também existe).
+    await expect(page.getByRole('paragraph').filter({ hasText: /^Clientes$/ })).toBeVisible();
     // Texto antigo (Módulo 6, quando `/admin` era só a confirmação de
     // login) não pode voltar a aparecer — o painel de verdade já existe.
     await expect(page.getByText('ainda não foi construído')).toHaveCount(0);

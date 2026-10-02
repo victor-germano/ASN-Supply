@@ -23,7 +23,10 @@ test.describe('Admin marca pedido como enviado com rastreio', () => {
     await adminPage.getByLabel('Código de rastreio').fill(trackingCode);
     await adminPage.getByLabel('Link de rastreio').fill('https://rastreio.exemplo.com/track');
     await adminPage.getByRole('button', { name: 'Salvar' }).click();
-    await expect(adminPage.getByLabel('Status')).toHaveValue('SHIPPED');
+    // Espera a confirmação do servidor — conferir só o valor do <select>
+    // passava na hora (é estado local) e o `close()` abaixo abortava o
+    // salvamento ainda em voo.
+    await expect(adminPage.getByText('Pedido atualizado.')).toBeVisible();
     await adminContext.close();
 
     // De volta como o cliente: revisita a própria confirmação e vê o

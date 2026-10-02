@@ -34,6 +34,9 @@ export function OrderStatusForm({ order }: { order: Order }) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Sem isto o "Salvar" não dava retorno nenhum — marcar um PIX como pago
+  // e não ter certeza se gravou é exatamente o erro que não pode acontecer.
+  const [justSaved, setJustSaved] = useState(false);
   const { register, handleSubmit } = useForm<OrderStatusFormValues>({
     defaultValues: {
       status: order.status,
@@ -44,6 +47,7 @@ export function OrderStatusForm({ order }: { order: Order }) {
 
   async function onSubmit(values: OrderStatusFormValues) {
     setSubmitError(null);
+    setJustSaved(false);
     setIsSubmitting(true);
     try {
       const result = await updateAdminOrderAction(order.id, {
@@ -55,6 +59,7 @@ export function OrderStatusForm({ order }: { order: Order }) {
         setSubmitError(result.message);
         return;
       }
+      setJustSaved(true);
       router.refresh();
     } finally {
       setIsSubmitting(false);
@@ -99,6 +104,11 @@ export function OrderStatusForm({ order }: { order: Order }) {
       {submitError && (
         <Text size="sm" className="text-error" role="alert">
           {submitError}
+        </Text>
+      )}
+      {justSaved && (
+        <Text size="sm" role="status">
+          Pedido atualizado. O cliente já vê o novo status.
         </Text>
       )}
 

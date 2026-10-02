@@ -23,6 +23,14 @@ interface CartStore {
    */
   hasHydrated: boolean;
   setHasHydrated: () => void;
+  /**
+   * De qual conta `items` já é espelho (ver `CartSync`). Persistido junto
+   * com os itens de propósito: guardado só em memória, cada recarga de
+   * página "esquecia" o merge já feito e somava o carrinho local ao da
+   * conta de novo — 1 unidade virava 2, depois 4…
+   */
+  syncedUserId: string | null;
+  setSyncedUserId: (userId: string | null) => void;
   addItem: (item: Omit<CartItem, 'quantity'>, quantity: number) => void;
   removeItem: (variantId: string) => void;
   setQuantity: (variantId: string, quantity: number) => void;
@@ -43,6 +51,8 @@ export const useCartStore = create<CartStore>()(
       items: [],
       hasHydrated: false,
       setHasHydrated: () => set({ hasHydrated: true }),
+      syncedUserId: null,
+      setSyncedUserId: (userId) => set({ syncedUserId: userId }),
       addItem: (item, quantity) =>
         set((state) => {
           const existing = state.items.find((i) => i.variantId === item.variantId);

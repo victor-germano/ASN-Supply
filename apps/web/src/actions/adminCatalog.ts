@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateStorefront } from './revalidateStorefront';
 import type {
   AdminCategory,
   AdminCollection,
@@ -46,7 +46,7 @@ export async function createAdminBrandAction(
 ): Promise<AdminBrandActionResult> {
   try {
     const brand = await createAdminBrand(input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, brand };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -59,7 +59,7 @@ export async function updateAdminBrandAction(
 ): Promise<AdminBrandActionResult> {
   try {
     const brand = await updateAdminBrand(id, input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, brand };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -69,7 +69,7 @@ export async function updateAdminBrandAction(
 export async function deleteAdminBrandAction(id: string): Promise<AdminCatalogDeleteResult> {
   try {
     await deleteAdminBrand(id);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -83,7 +83,7 @@ export async function createAdminCategoryAction(
 ): Promise<AdminCategoryActionResult> {
   try {
     const category = await createAdminCategory(input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, category };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -96,7 +96,7 @@ export async function updateAdminCategoryAction(
 ): Promise<AdminCategoryActionResult> {
   try {
     const category = await updateAdminCategory(id, input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, category };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -106,7 +106,7 @@ export async function updateAdminCategoryAction(
 export async function deleteAdminCategoryAction(id: string): Promise<AdminCatalogDeleteResult> {
   try {
     await deleteAdminCategory(id);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -120,7 +120,7 @@ export async function createAdminCollectionAction(
 ): Promise<AdminCollectionActionResult> {
   try {
     const collection = await createAdminCollection(input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, collection };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -133,7 +133,7 @@ export async function updateAdminCollectionAction(
 ): Promise<AdminCollectionActionResult> {
   try {
     const collection = await updateAdminCollection(id, input);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true, collection };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -143,7 +143,7 @@ export async function updateAdminCollectionAction(
 export async function deleteAdminCollectionAction(id: string): Promise<AdminCatalogDeleteResult> {
   try {
     await deleteAdminCollection(id);
-    revalidatePath('/admin/catalogo');
+    revalidateStorefront();
     return { success: true };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };

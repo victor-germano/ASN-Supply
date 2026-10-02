@@ -43,6 +43,12 @@ async function bootstrap(): Promise<void> {
   await app.listen(port);
 
   Logger.log(`ASN Supply API rodando em http://localhost:${port}`, 'Bootstrap');
+  if (!config.get('INTERNAL_API_KEY', { infer: true })) {
+    Logger.warn(
+      'INTERNAL_API_KEY ausente — o limite de requisições vai tratar todos os visitantes do site como um só (a loja pode responder 429 com pouco movimento).',
+      'Bootstrap',
+    );
+  }
 }
 
 bootstrap().catch((error: unknown) => {

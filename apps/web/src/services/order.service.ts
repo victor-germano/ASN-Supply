@@ -6,7 +6,6 @@ import type {
   PaymentIntentResult,
   UpdateOrderInput,
 } from '@asn/types';
-import { apiFetch } from './apiClient';
 import { authenticatedFetch } from './authenticatedFetch';
 
 /** Cria o pedido (convidado ou autenticado) — preço/estoque são sempre revalidados pelo servidor. */
@@ -33,9 +32,14 @@ export function getMyOrders(): Promise<Order[]> {
   return authenticatedFetch<Order[]>('/orders');
 }
 
-/** Etapa de pagamento — hoje sempre `available: false` (ver `NullPaymentGateway` na API). */
+/**
+ * Etapa de pagamento (PIX ou "em breve"). `authenticatedFetch` pelo mesmo
+ * motivo de `getOrder`: a API aplica a mesma checagem de dono aqui — com
+ * `apiFetch` cru, todo pedido de cliente logado respondia 404 e a página
+ * de confirmação inteira virava "página não encontrada".
+ */
 export function getPaymentIntent(orderId: string): Promise<PaymentIntentResult> {
-  return apiFetch<PaymentIntentResult>(`/orders/${orderId}/payment-intent`, {
+  return authenticatedFetch<PaymentIntentResult>(`/orders/${orderId}/payment-intent`, {
     init: { method: 'POST' },
   });
 }

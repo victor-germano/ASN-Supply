@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { logoutAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
+import { useCartStore } from '@/stores/cartStore';
 
 /**
  * Substitui `<form action={logoutAction}>` puro nos layouts de `/conta` e
@@ -17,6 +18,11 @@ export function LogoutButton({ className }: { className?: string }) {
 
   async function handleLogout() {
     await logoutAction();
+    // O carrinho local era espelho do da conta (ver `CartSync`) — continua
+    // salvo no servidor; aqui ele some do aparelho (computador
+    // compartilhado) e o próximo login faz o merge do zero, sem duplicar.
+    useCartStore.getState().clear();
+    useCartStore.getState().setSyncedUserId(null);
     invalidateCurrentUser();
     router.push('/');
     router.refresh();

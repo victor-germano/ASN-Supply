@@ -105,15 +105,17 @@ export class OrdersController {
   }
 
   /**
-   * Etapa de pagamento do checkout — hoje sempre retorna indisponível (ver
-   * `NullPaymentGateway`). Mesma proteção de posse de `findById` (ver
-   * comentário lá) — o `:id` é o mesmo recurso, não faz sentido proteger
-   * um verbo e deixar o outro aberto.
+   * Etapa de pagamento (PIX ou "em breve"). Mesma proteção de posse de
+   * `findById` (ver comentário lá) — o `:id` é o mesmo recurso, não faz
+   * sentido proteger um verbo e deixar o outro aberto. Mesmo limite também:
+   * a página do pedido chama as duas rotas a cada visualização (o cliente
+   * recarrega esperando o "Pago"), e só calcula o código PIX, sem gravar
+   * nada — com 10/min, a 11ª recarga derrubava a página inteira.
    */
   @Post(':id/payment-intent')
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   createPaymentIntent(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser | undefined,

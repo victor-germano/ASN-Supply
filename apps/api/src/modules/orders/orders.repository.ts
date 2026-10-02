@@ -218,11 +218,16 @@ export class OrdersRepository {
         // acima): sob concorrência, duas compras simultâneas com o último
         // uso restante de um cupom `maxRedemptions` não podem as duas
         // passar — a que perder a corrida cai no `count === 0` e aborta.
+        // Sem limite (`maxRedemptions: null`), não há corrida a proteger —
+        // e o Prisma recusa `lt: null` (validação, não "sempre verdadeiro"):
+        // montar o `OR` com os dois ramos fazia TODO cupom ilimitado
+        // derrubar o checkout com 500.
+        const maxRedemptions = coupon!.maxRedemptions;
         const redemption = await tx.coupon.updateMany({
-          where: {
-            id: couponId,
-            OR: [{ maxRedemptions: null }, { redemptionCount: { lt: coupon!.maxRedemptions! } }],
-          },
+          where:
+            maxRedemptions === null
+              ? { id: couponId }
+              : { id: couponId, redemptionCount: { lt: maxRedemptions } },
           data: { redemptionCount: { increment: 1 } },
         });
         if (redemption.count === 0) {
@@ -345,6 +350,9 @@ export class OrdersRepository {
 
     const order = await this.prisma.$transaction(async (tx) => {
       for (const item of existing.items) {
+        // Variante excluída pelo admin depois da compra (`variantId` virou
+        // null, ver schema) — não há mais estoque pra devolver.
+        if (!item.variantId) continue;
         await tx.productVariant.update({
           where: { id: item.variantId },
           data: { stockQuantity: { increment: item.quantity } },

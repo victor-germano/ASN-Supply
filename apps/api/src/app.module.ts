@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './modules/prisma/prisma.module';
@@ -31,10 +32,13 @@ import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.
     }),
     ThrottlerModule.forRoot([
       {
-        // Janela e limite conservadores por IP — ajustados por rota
-        // sensível (ex: login, checkout) via @Throttle() nos controllers.
+        // Limite geral POR VISITANTE (ver `AppThrottlerGuard`) — rotas
+        // sensíveis (login, cadastro, checkout) têm limites bem menores via
+        // @Throttle() nos controllers. 300 e não 100: cada página do site
+        // faz várias chamadas pessoais (sessão, carrinho, pedidos), e um
+        // cliente navegando rápido chegava perto de 100/min sozinho.
         ttl: 60_000,
-        limit: 100,
+        limit: 300,
       },
     ]),
     PrismaModule,
@@ -59,7 +63,7 @@ import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
   ],
 })

@@ -62,6 +62,9 @@ docker compose up -d
 # 3. Configurar variáveis de ambiente
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
+#    + gere UM segredo e coloque o MESMO valor em INTERNAL_API_KEY nos dois
+#      arquivos (sem ele, a API vê todos os visitantes como um só):
+node -e "console.log(require('crypto').randomBytes(36).toString('base64url'))"
 
 # 4. Gerar client Prisma e rodar a primeira migração
 pnpm --filter @asn/api db:generate

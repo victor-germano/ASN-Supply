@@ -2,6 +2,8 @@ import type { ApiErrorBody } from '@asn/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1';
 const HTTP_STATUS_NO_CONTENT = 204;
+/** Mesmo nome que a API lê em `common/guards/throttle-identity.ts`. */
+export const INTERNAL_KEY_HEADER = 'x-asn-internal-key';
 
 export class ApiError extends Error {
   constructor(
@@ -58,6 +60,14 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const isFormData = options.init?.body instanceof FormData;
   if (!headers.has('Content-Type') && !isFormData) {
     headers.set('Content-Type', 'application/json');
+  }
+  // Só no servidor: identifica o servidor do site pra API (ver
+  // `throttle-identity.ts` lá). No navegador `INTERNAL_API_KEY` nem existe
+  // — variável sem `NEXT_PUBLIC_` nunca entra no bundle do cliente. Valor
+  // fixo, então não fragmenta o cache de catálogo.
+  const internalKey = typeof window === 'undefined' ? process.env.INTERNAL_API_KEY : undefined;
+  if (internalKey) {
+    headers.set(INTERNAL_KEY_HEADER, internalKey);
   }
 
   const response = await fetch(url, {

@@ -108,7 +108,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   try {
     const response = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalApiHeaders(request),
       body: JSON.stringify({ refreshToken }),
     });
     if (!response.ok) {
@@ -165,11 +165,30 @@ function guardAdminRole(
   return NextResponse.next();
 }
 
+/**
+ * Mesmos headers de `serverFetch`/`apiFetch` (não dá pra importar
+ * `serverFetch` aqui: middleware não tem `next/headers`), pra renovação de
+ * sessão contar no limite de cada visitante, não no da loja inteira.
+ */
+function internalApiHeaders(request: NextRequest): HeadersInit {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const internalKey = process.env.INTERNAL_API_KEY;
+  if (internalKey) {
+    headers['x-asn-internal-key'] = internalKey;
+    headers['x-asn-client-ip'] =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip')?.trim() ||
+      'unknown';
+  }
+  return headers;
+}
+
 function redirectToLogin(request: NextRequest, wantsAdmin: boolean): NextResponse {
   const url = new URL(wantsAdmin ? '/admin/entrar' : '/entrar', request.url);
-  if (!wantsAdmin) {
-    url.searchParams.set('next', request.nextUrl.pathname);
-  }
+  // Admin também: sessão expirada no meio de `/admin/pedidos/<id>` volta
+  // pro mesmo pedido depois do login, não pro painel inicial.
+  // `LoginForm` só aceita caminho interno (`isSafeInternalPath`).
+  url.searchParams.set('next', request.nextUrl.pathname);
   const response = NextResponse.redirect(url);
   response.cookies.delete(ACCESS_TOKEN_COOKIE);
   response.cookies.delete(REFRESH_TOKEN_COOKIE);

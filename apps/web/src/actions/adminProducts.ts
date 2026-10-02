@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateStorefront } from './revalidateStorefront';
 import type { AdminProductDetail } from '@asn/types';
 import { ApiError } from '@/services/apiClient';
 import {
@@ -27,7 +27,7 @@ export async function createAdminProductAction(
 ): Promise<AdminProductActionResult> {
   try {
     const product = await createAdminProduct(input);
-    revalidatePath('/admin/produtos');
+    revalidateStorefront();
     return { success: true, product };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -40,8 +40,7 @@ export async function updateAdminProductAction(
 ): Promise<AdminProductActionResult> {
   try {
     const product = await updateAdminProduct(id, input);
-    revalidatePath('/admin/produtos');
-    revalidatePath(`/admin/produtos/${id}`);
+    revalidateStorefront();
     return { success: true, product };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };
@@ -53,7 +52,7 @@ export async function deleteAdminProductAction(
 ): Promise<DeleteAdminProductActionResult> {
   try {
     await deleteAdminProduct(id);
-    revalidatePath('/admin/produtos');
+    revalidateStorefront();
     return { success: true };
   } catch (error) {
     return { success: false, message: genericErrorMessage(error) };

@@ -1,15 +1,15 @@
 import type { AuthResponse, AuthenticatedUser, LoginInput, RegisterInput } from '@asn/types';
-import { apiFetch } from './apiClient';
+import { serverFetch } from './serverFetch';
 import { authenticatedFetch } from './authenticatedFetch';
 
 export function register(input: RegisterInput): Promise<AuthResponse> {
-  return apiFetch<AuthResponse>('/auth/register', {
+  return serverFetch<AuthResponse>('/auth/register', {
     init: { method: 'POST', body: JSON.stringify(input) },
   });
 }
 
 export function login(input: LoginInput): Promise<AuthResponse> {
-  return apiFetch<AuthResponse>('/auth/login', {
+  return serverFetch<AuthResponse>('/auth/login', {
     init: { method: 'POST', body: JSON.stringify(input) },
   });
 }
@@ -33,19 +33,19 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
 /** Sempre resolve (nunca lança) — a API já devolve 204 exista o e-mail ou não, mesma defesa contra enumeração de `login`. */
 export function forgotPassword(email: string): Promise<void> {
-  return apiFetch<void>('/auth/forgot-password', {
+  return serverFetch<void>('/auth/forgot-password', {
     init: { method: 'POST', body: JSON.stringify({ email }) },
   });
 }
 
 export function resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
-  return apiFetch<AuthResponse>('/auth/reset-password', {
+  return serverFetch<AuthResponse>('/auth/reset-password', {
     init: { method: 'POST', body: JSON.stringify({ token, newPassword }) },
   });
 }
 
 export function verifyEmail(token: string): Promise<void> {
-  return apiFetch<void>('/auth/verify-email', {
+  return serverFetch<void>('/auth/verify-email', {
     init: { method: 'POST', body: JSON.stringify({ token }) },
   });
 }

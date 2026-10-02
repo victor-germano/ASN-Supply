@@ -16,7 +16,7 @@ test.describe('Cancelamento de pedido pelo cliente', () => {
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Cancelar pedido' }).click();
 
-    await expect(page.getByText('Cancelado')).toBeVisible();
+    await expect(page.getByText('Cancelado', { exact: true })).toBeVisible();
     // O botão só aparece quando `canCancel` é `true` — some depois do
     // status virar `CANCELLED` (revalidado no servidor, `router.refresh()`
     // busca o pedido de novo).
@@ -25,6 +25,6 @@ test.describe('Cancelamento de pedido pelo cliente', () => {
     // Reflete também no histórico (`/conta/pedidos`), não só na página de
     // confirmação — mesmo pedido, telas diferentes.
     await page.goto('/conta/pedidos');
-    await expect(page.getByText('Cancelado')).toBeVisible();
+    await expect(page.getByText(/· Cancelado/)).toBeVisible();
   });
 });

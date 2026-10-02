@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/authCookies';
-import { apiFetch, ApiError, type ApiFetchOptions } from './apiClient';
+import { ApiError, type ApiFetchOptions } from './apiClient';
+import { serverFetch } from './serverFetch';
 
 const HTTP_STATUS_UNAUTHORIZED = 401;
 
@@ -16,7 +17,11 @@ function withAuthHeader(
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  return { ...options, init: { ...options.init, headers } };
+  // Dado de uma pessoa (pedido, conta, painel admin) nunca entra no cache
+  // de dados do Next: sem isto, a confirmação do pedido continuava
+  // mostrando "Aguardando pagamento" depois que o admin já tinha marcado
+  // "Pago"/"Enviado" — exatamente a informação que o cliente volta pra ver.
+  return { ...options, init: { cache: 'no-store', ...options.init, headers } };
 }
 
 /**
@@ -51,7 +56,7 @@ export async function authenticatedFetch<T>(
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
   try {
-    return await apiFetch<T>(path, withAuthHeader(options, accessToken));
+    return await serverFetch<T>(path, withAuthHeader(options, accessToken));
   } catch (error) {
     if (!(error instanceof ApiError) || error.statusCode !== HTTP_STATUS_UNAUTHORIZED) {
       throw error;
@@ -63,10 +68,10 @@ export async function authenticatedFetch<T>(
     }
 
     try {
-      const refreshed = await apiFetch<{ accessToken: string }>('/auth/refresh', {
+      const refreshed = await serverFetch<{ accessToken: string }>('/auth/refresh', {
         init: { method: 'POST', body: JSON.stringify({ refreshToken }) },
       });
-      return await apiFetch<T>(path, withAuthHeader(options, refreshed.accessToken));
+      return await serverFetch<T>(path, withAuthHeader(options, refreshed.accessToken));
     } catch {
       // Refresh também falhou (refresh token igualmente expirado/inválido)
       // — não há mais o que tentar; propaga o 401 original.
