@@ -11,7 +11,7 @@ export interface TryOnAnalysisContext {
  * uma foto + um produto, gerar um parecer de estilo/caimento". Duas
  * implementações — `ClaudeTryOnAnalyzer` (real, via visão computacional) e
  * `MockTryOnAnalyzer` (parecer ilustrativo) — escolhidas em runtime pela
- * factory em `tryon.module.ts` conforme `ANTHROPIC_API_KEY` estar configurada
+ * factory em `tryon.module.ts` conforme `ASN_ANTHROPIC_API_KEY` estar configurada
  * ou não. Classe abstrata pelo mesmo motivo de `PaymentGateway`: é o próprio
  * token de injeção do Nest.
  */

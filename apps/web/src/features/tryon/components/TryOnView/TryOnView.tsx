@@ -11,7 +11,7 @@ import { TryOnResult } from './TryOnResult';
 /**
  * Provador Digital (Módulo 7) — Fase 1. Página dedicada (não amarrada a um
  * produto específico da PDP): o cliente sobe a foto e só depois escolhe o
- * produto entre o catálogo. Sem ANTHROPIC_API_KEY ainda (decisão do
+ * produto entre o catálogo. Sem ASN_ANTHROPIC_API_KEY ainda (decisão do
  * usuário), a análise vem de `MockTryOnAnalyzer` — o resultado sempre
  * chega com `isSimulated`, e a UI mostra isso explicitamente (badge
  * "Prévia" + aviso), nunca finge que é uma leitura real da foto.

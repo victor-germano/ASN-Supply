@@ -10,12 +10,12 @@ function fakeConfig(anthropicApiKey: string | undefined): ConfigService<EnvConfi
 }
 
 describe('createTryOnAnalyzer', () => {
-  it('escolhe MockTryOnAnalyzer quando ANTHROPIC_API_KEY não está configurada', () => {
+  it('escolhe MockTryOnAnalyzer quando ASN_ANTHROPIC_API_KEY não está configurada', () => {
     const analyzer = createTryOnAnalyzer(fakeConfig(undefined));
     expect(analyzer).toBeInstanceOf(MockTryOnAnalyzer);
   });
 
-  it('escolhe ClaudeTryOnAnalyzer quando ANTHROPIC_API_KEY está configurada', () => {
+  it('escolhe ClaudeTryOnAnalyzer quando ASN_ANTHROPIC_API_KEY está configurada', () => {
     const analyzer = createTryOnAnalyzer(fakeConfig('sk-ant-fake-key'));
     expect(analyzer).toBeInstanceOf(ClaudeTryOnAnalyzer);
   });

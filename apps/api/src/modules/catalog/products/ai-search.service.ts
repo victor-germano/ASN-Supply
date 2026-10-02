@@ -27,7 +27,7 @@ Regras:
 - Nunca invente um produto que não está na lista recebida.`;
 
 /**
- * "Busca por IA" (Módulo 8) — reaproveita a mesma `ANTHROPIC_API_KEY` do
+ * "Busca por IA" (Módulo 8) — reaproveita a mesma `ASN_ANTHROPIC_API_KEY` do
  * Provador Digital (Fase 2). Sem a chave configurada, cai no fallback de
  * busca textual comum (`ProductsRepository.search`) — nunca finge análise
  * de IA que não aconteceu (`isAiPowered: false`, `summary: null`), mesmo
@@ -45,7 +45,7 @@ export class AiSearchService {
     private readonly repository: ProductsRepository,
     config: ConfigService<EnvConfig, true>,
   ) {
-    const apiKey = config.get('ANTHROPIC_API_KEY', { infer: true });
+    const apiKey = config.get('ASN_ANTHROPIC_API_KEY', { infer: true });
     this.client = apiKey ? new Anthropic({ apiKey }) : null;
   }
 

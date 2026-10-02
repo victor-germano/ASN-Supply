@@ -14,7 +14,7 @@ const STYLE_TEMPLATES = [
 const SIZE_POOL = ['38', '39', '40', '41', '42', '43', '44'];
 
 /**
- * Adapter de análise usado quando `ANTHROPIC_API_KEY` não está configurada
+ * Adapter de análise usado quando `ASN_ANTHROPIC_API_KEY` não está configurada
  * (ver factory em `tryon.module.ts`) — mesma lógica do `NullPaymentGateway`:
  * em vez de bloquear a experiência inteira sem a chave, devolve um parecer
  * ilustrativo (contextualizado com o produto de verdade, não genérico),
@@ -27,7 +27,7 @@ export class MockTryOnAnalyzer extends TryOnAnalyzer {
 
   async analyze(context: TryOnAnalysisContext): Promise<TryOnAnalysisResult> {
     this.logger.log(
-      `Análise simulada solicitada para "${context.product.name}" (sem ANTHROPIC_API_KEY).`,
+      `Análise simulada solicitada para "${context.product.name}" (sem ASN_ANTHROPIC_API_KEY).`,
     );
 
     const template = STYLE_TEMPLATES[Math.floor(Math.random() * STYLE_TEMPLATES.length)]!;

@@ -45,7 +45,7 @@ Regras:
 /**
  * Adapter real do Provador Digital Fase 2: análise de estilo/caimento via
  * Claude com visão, substituindo o parecer ilustrativo do `MockTryOnAnalyzer`
- * quando `ANTHROPIC_API_KEY` está configurada (ver factory em
+ * quando `ASN_ANTHROPIC_API_KEY` está configurada (ver factory em
  * `tryon.module.ts`). `photoBase64` já chega como data URL JPEG redimensionada
  * no client (ver `resizeImage.ts` no frontend) — bem dentro do limite de
  * imagem da Anthropic, sem necessidade de reprocessar aqui.
@@ -57,7 +57,7 @@ export class ClaudeTryOnAnalyzer extends TryOnAnalyzer {
 
   constructor(config: ConfigService<EnvConfig, true>) {
     super();
-    this.client = new Anthropic({ apiKey: config.get('ANTHROPIC_API_KEY', { infer: true }) });
+    this.client = new Anthropic({ apiKey: config.get('ASN_ANTHROPIC_API_KEY', { infer: true }) });
   }
 
   async analyze(context: TryOnAnalysisContext): Promise<TryOnAnalysisResult> {

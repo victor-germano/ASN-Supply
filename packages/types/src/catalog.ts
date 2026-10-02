@@ -144,7 +144,7 @@ export interface LookItem {
 
 /**
  * Resposta de `POST /products/ai-search` (Módulo 8). `isAiPowered: false` =
- * sem `ANTHROPIC_API_KEY` configurada, caiu no fallback de busca textual
+ * sem `ASN_ANTHROPIC_API_KEY` configurada, caiu no fallback de busca textual
  * comum (`ProductsRepository.search`) — `summary` vem `null` nesse caso,
  * nunca um texto genérico fingindo ser análise real (mesmo princípio do
  * Provador Digital: nunca disfarçar simulado como real).

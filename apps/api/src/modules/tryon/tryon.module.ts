@@ -9,7 +9,7 @@ import { CatalogModule } from '../catalog/catalog.module';
 import type { EnvConfig } from '../../config/env.validation';
 
 /**
- * Escolhe o adapter em runtime a partir de `ANTHROPIC_API_KEY`: com a chave
+ * Escolhe o adapter em runtime a partir de `ASN_ANTHROPIC_API_KEY`: com a chave
  * configurada, análise real via Claude; sem ela, mesmo parecer ilustrativo de
  * sempre — dev/CI continuam funcionando sem exigir a chave. Mesmo espírito
  * do padrão porta/adapter já usado em `PaymentGateway`/`NullPaymentGateway`
@@ -17,7 +17,7 @@ import type { EnvConfig } from '../../config/env.validation';
  * de fixa no `useClass`.
  */
 export function createTryOnAnalyzer(config: ConfigService<EnvConfig, true>): TryOnAnalyzer {
-  return config.get('ANTHROPIC_API_KEY', { infer: true })
+  return config.get('ASN_ANTHROPIC_API_KEY', { infer: true })
     ? new ClaudeTryOnAnalyzer(config)
     : new MockTryOnAnalyzer();
 }

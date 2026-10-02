@@ -48,7 +48,7 @@ const envSchema = z
     AWS_REGION: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
-    ANTHROPIC_API_KEY: z.string().optional(),
+    ASN_ANTHROPIC_API_KEY: z.string().optional(),
     // E-mail transacional (reset de senha, verificação, confirmação de
     // pedido) — ver EmailModule. Prioridade: RESEND_API_KEY → SMTP_HOST →
     // ConsoleEmailSender (loga em vez de enviar de verdade). EMAIL_FROM é
