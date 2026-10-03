@@ -87,6 +87,25 @@ com a API do outro:
 | Postgres | `5432` (container `asn-supply-postgres`) |
 | Redis    | `6379` (container `asn-supply-redis`)    |
 
+### Quando o domínio próprio estiver pronto
+
+Nenhum código muda — só variáveis de ambiente (exemplo com `asnsupply.com.br`,
+site em `www.` e API em `api.`):
+
+| Onde | Variável                    | Valor                                                                   |
+| ---- | --------------------------- | ----------------------------------------------------------------------- |
+| web  | `NEXT_PUBLIC_SITE_URL`      | `https://www.asnsupply.com.br`                                          |
+| web  | `NEXT_PUBLIC_API_URL`       | `https://api.asnsupply.com.br/v1`                                       |
+| web  | `NEXT_PUBLIC_CONTACT_EMAIL` | `contato@asnsupply.com.br`                                              |
+| api  | `WEB_APP_URL`               | `https://www.asnsupply.com.br` (links de e-mail e SMS)                  |
+| api  | `CORS_ALLOWED_ORIGINS`      | `https://www.asnsupply.com.br`                                          |
+| api  | `GOOGLE_OAUTH_CALLBACK_URL` | `https://api.asnsupply.com.br/v1/auth/google/callback`                  |
+| api  | `EMAIL_FROM`                | `ASN Supply <contato@asnsupply.com.br>` (com Resend ou SMTP do domínio) |
+
+Também: cadastrar o domínio no provedor de e-mail (registros SPF/DKIM, senão as
+mensagens caem no spam) e configurar `CLOUDINARY_URL` para as fotos — em
+produção o envio de imagem exige Cloudinary.
+
 ### Windows com "Controle Inteligente de Aplicativos"
 
 Esse recurso do Windows pode bloquear binários nativos sem assinatura (`turbo.exe`,

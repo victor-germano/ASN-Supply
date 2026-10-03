@@ -17,6 +17,22 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
+### Dados reais da loja (02/10/2026)
+
+- E-mail público da loja (asn.supply.commerce@gmail.com) em rodapé, FAQ,
+  trocas e privacidade via `lib/storeInfo.ts` (`NEXT_PUBLIC_CONTACT_EMAIL`
+  troca tudo quando houver domínio); fim do `contato@asnsupply.com` fictício.
+- Mesmo Gmail como remetente SMTP no `.env` local. `createEmailSender` só
+  ativa SMTP com a senha de app preenchida (antes tentaria e falharia) —
+  testado em `email.module.spec.ts`.
+- `scripts/create-admin.ts`: cria/promove admin com senha temporária forte
+  mostrada uma vez; usado para a conta da proprietária. E-mail pessoal e
+  chave PIX ficam só no `.env`/banco — nunca no código versionado.
+- PIX preparado (chave no `.env`, comentada) aguardando nome e cidade do
+  titular. README: roteiro de variáveis para o domínio futuro.
+- Ambiente: segundo `0xC0000409` (crash nativo do Node) desta máquina, desta
+  vez durante `next build`; repetir o build resolveu. Não é do projeto.
+
 ### Cadastro completo, senha por SMS, aviso de login e lembrete "sentimos sua falta" (02/10/2026)
 
 Pedido do usuário: cadastro completo (nome, sobrenome, CEP, endereço,

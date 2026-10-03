@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
 import { Heading, Text } from '@asn/ui';
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export default function ExchangesPage() {
           Você tem até 30 dias corridos após o recebimento para solicitar a troca de tamanho ou cor,
           sujeita à disponibilidade em estoque. O frete de reenvio da troca é por nossa conta quando
           a solicitação é feita dentro do prazo. Por enquanto, a solicitação é aberta pelo
-          contato@asnsupply.com, informando o número do pedido — a área do cliente para abrir isso
+          {STORE_CONTACT_EMAIL}, informando o número do pedido — a área do cliente para abrir isso
           online está a caminho.
         </Text>
       </section>

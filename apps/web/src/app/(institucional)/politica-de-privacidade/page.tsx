@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
 import { Heading, Text } from '@asn/ui';
 
 export const metadata: Metadata = {
@@ -76,7 +77,7 @@ export default function PrivacyPolicyPage() {
         </Heading>
         <Text tone="muted">
           Você pode solicitar a qualquer momento a confirmação, correção, portabilidade ou exclusão
-          dos seus dados, bem como revogar consentimentos concedidos, pelo contato@asnsupply.com.
+          dos seus dados, bem como revogar consentimentos concedidos, pelo {STORE_CONTACT_EMAIL}.
         </Text>
       </section>
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
 import { Container, Text } from '@asn/ui';
 import { InstagramIcon } from '@/components/icons';
 
@@ -62,8 +63,8 @@ export function Footer() {
           </Text>
           <ul className="flex flex-col gap-3 text-sm text-ink-muted">
             <li>
-              <a href="mailto:contato@asnsupply.com" className="hover:text-ink">
-                contato@asnsupply.com
+              <a href={`mailto:${STORE_CONTACT_EMAIL}`} className="hover:text-ink">
+                {STORE_CONTACT_EMAIL}
               </a>
             </li>
             <li>Seg. a sex., 9h às 18h</li>

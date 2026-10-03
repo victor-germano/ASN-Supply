@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
 import { Heading, Text } from '@asn/ui';
 
 export const metadata: Metadata = {
@@ -21,8 +22,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Como funciona a troca de tamanho?',
-    answer:
-      'Você tem até 30 dias corridos após o recebimento para solicitar troca de numeração, sem custo adicional no frete de reenvio. Por enquanto, a solicitação é feita pelo contato@asnsupply.com informando o número do pedido — a área do cliente para acompanhar isso online está a caminho.',
+    answer: `Você tem até 30 dias corridos após o recebimento para solicitar troca de numeração, sem custo adicional no frete de reenvio. Por enquanto, a solicitação é feita pelo ${STORE_CONTACT_EMAIL} informando o número do pedido — a área do cliente para acompanhar isso online está a caminho.`,
   },
   {
     question: 'Posso devolver um produto e ser reembolsado?',
