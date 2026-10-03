@@ -10,6 +10,7 @@ import type { UsersRepository } from '../users/users.repository';
 import type { EmailSender } from '../email/email-sender';
 import type { TextMessageSender } from '../messaging/text-message-sender';
 import type { PasswordResetCodeService } from './password-reset-code.service';
+import { LOGIN_MAX_FAILURES, LoginLockout } from './login-lockout';
 import type { RegisterInput } from '@asn/types';
 
 const JWT_SECRET = 'a-test-secret-with-at-least-32-characters';
@@ -68,6 +69,7 @@ function buildService(
   emailSender: EmailSender = fakeEmailSender(),
   textSender: TextMessageSender = fakeTextSender(),
   resetCodes: PasswordResetCodeService = fakeResetCodes(),
+  loginLockout: LoginLockout = new LoginLockout(),
 ) {
   const jwtService = new JwtService({ secret: JWT_SECRET });
   return new AuthService(
@@ -77,6 +79,7 @@ function buildService(
     emailSender,
     textSender,
     resetCodes,
+    loginLockout,
   );
 }
 
@@ -280,6 +283,29 @@ describe('AuthService', () => {
       await expect(
         service.login({ email: 'camila@example.com', password: 'qualquer' }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('conta travada recusa até a senha certa (429), e redefinir a senha destrava', async () => {
+      const passwordHash = await bcrypt.hash('senha-correta', 12);
+      const user = fakeUser({ passwordHash });
+      const lockout = new LoginLockout();
+      for (let i = 0; i < LOGIN_MAX_FAILURES; i++) lockout.recordFailure(user.email);
+      const service = buildService(
+        { findByEmail: vi.fn().mockResolvedValue(user) },
+        fakeEmailSender(),
+        fakeTextSender(),
+        fakeResetCodes(),
+        lockout,
+      );
+
+      await expect(
+        service.login({ email: user.email, password: 'senha-correta' }),
+      ).rejects.toMatchObject({ status: 429 });
+
+      lockout.clear(user.email);
+      await expect(
+        service.login({ email: user.email, password: 'senha-correta' }),
+      ).resolves.toMatchObject({ user: { id: user.id } });
     });
   });
 

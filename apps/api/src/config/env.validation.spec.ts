@@ -29,6 +29,19 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validConfig, NODE_ENV: 'staging' })).toThrow();
   });
 
+  it('produção exige INTERNAL_API_KEY e recusa o JWT_SECRET de exemplo', () => {
+    const production = { ...validConfig, NODE_ENV: 'production' };
+    expect(() => validateEnv(production)).toThrow(/INTERNAL_API_KEY/);
+    const withKey = { ...production, INTERNAL_API_KEY: 'k'.repeat(32) };
+    expect(validateEnv(withKey).NODE_ENV).toBe('production');
+    expect(() =>
+      validateEnv({
+        ...withKey,
+        JWT_SECRET: 'troque-este-valor-por-um-segredo-forte-de-32-chars-ou-mais',
+      }),
+    ).toThrow(/JWT_SECRET/);
+  });
+
   it('converte PORT string em number', () => {
     const result = validateEnv({ ...validConfig, PORT: '4000' });
     expect(result.PORT).toBe(4000);

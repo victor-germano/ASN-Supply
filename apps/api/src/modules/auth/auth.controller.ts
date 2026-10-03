@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import type { AuthResponse, AuthenticatedUser } from '@asn/types';
 import type { EnvConfig } from '../../config/env.validation';
+import { safeAfterLoginPath } from '../../common/utils/safe-redirect';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -168,7 +169,8 @@ export class AuthController {
   async googleCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
     const profile = req.user as GoogleProfile;
     const result = await this.service.loginWithGoogle(profile);
-    const next = typeof req.query.state === 'string' ? req.query.state : '/conta/pedidos';
+    // Revalidado aqui também: o `state` volta pela URL e pode ser forjado.
+    const next = safeAfterLoginPath(req.query.state);
 
     const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
     const redirectUrl = new URL('/auth/google/callback', webAppUrl);

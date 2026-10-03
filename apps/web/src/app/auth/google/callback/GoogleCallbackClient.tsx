@@ -7,8 +7,7 @@ import { Text } from '@asn/ui';
 import { completeGoogleLoginAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
 
-const isSafeInternalPath = (value: string | null): value is string =>
-  !!value && value.startsWith('/') && !value.startsWith('//');
+import { isSafeInternalPath } from '@/lib/safeRedirect';
 
 /**
  * `AuthController.googleCallback` (API) redireciona pra cá com

@@ -1,20 +1,19 @@
 import { headers } from 'next/headers';
+import { pickClientIp } from '@/lib/clientIp';
 import { apiFetch, type ApiFetchOptions } from './apiClient';
 
 /** Mesmo nome que a API lê em `common/guards/throttle-identity.ts`. */
 export const CLIENT_IP_HEADER = 'x-asn-client-ip';
 
 /**
- * IP do visitante que fez a requisição ao site — primeiro valor de
- * `x-forwarded-for` (posto pela hospedagem/proxy, ou pelo próprio Next
- * quando não há proxy na frente). `'unknown'` em vez de omitir: sem IP, a
- * API trataria a chamada como "cache do servidor" e não aplicaria limite
- * nenhum — num login, isso abriria força bruta.
+ * IP do visitante que fez a requisição ao site (ver `pickClientIp`).
+ * `'unknown'` em vez de omitir: sem IP, a API trataria a chamada como
+ * "cache do servidor" e não aplicaria limite nenhum — num login, isso
+ * abriria força bruta.
  */
 export async function getClientIp(): Promise<string> {
   const incoming = await headers();
-  const forwardedFor = incoming.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwardedFor || incoming.get('x-real-ip')?.trim() || 'unknown';
+  return pickClientIp(incoming.get('x-forwarded-for'), incoming.get('x-real-ip'));
 }
 
 /**

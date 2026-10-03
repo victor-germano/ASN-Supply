@@ -23,10 +23,12 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 
   return (
     <nav aria-label="Breadcrumb">
-      {/* JSON-LD estático gerado por nós (sem entrada de usuário não sanitizada). */}
+      {/* Rótulos vêm do catálogo (nome de produto/categoria digitado no
+          admin): `<` escapado impede que um "</script>" no nome feche a
+          tag e injete HTML — mesmo tratamento do JSON-LD da página de produto. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
       <ol className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
         {items.map((item, index) => (

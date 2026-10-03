@@ -2,12 +2,14 @@ import Link from 'next/link';
 import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
 import { Container, Text } from '@asn/ui';
 import { InstagramIcon } from '@/components/icons';
+import { CookiePreferencesButton } from '@/features/consent/CookiePreferencesButton';
 
 const INSTITUTIONAL_LINKS = [
   { label: 'Sobre a marca', href: '/#sobre' },
   { label: 'Perguntas Frequentes', href: '/perguntas-frequentes' },
   { label: 'Trocas e Devoluções', href: '/trocas-e-devolucoes' },
   { label: 'Política de Privacidade', href: '/politica-de-privacidade' },
+  { label: 'Política de Cookies', href: '/politica-de-cookies' },
   { label: 'Termos de Uso', href: '/termos-de-uso' },
 ];
 
@@ -54,6 +56,9 @@ export function Footer() {
                 </Link>
               </li>
             ))}
+            <li>
+              <CookiePreferencesButton className="text-left text-sm text-ink-muted hover:text-ink" />
+            </li>
           </ul>
         </nav>
 

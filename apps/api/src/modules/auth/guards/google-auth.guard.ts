@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Observable } from 'rxjs';
 import type { Request } from 'express';
 import type { EnvConfig } from '../../../config/env.validation';
+import { safeAfterLoginPath } from '../../../common/utils/safe-redirect';
 
 /**
  * Barra `GET /auth/google` e `/auth/google/callback` ANTES de qualquer
@@ -41,11 +42,9 @@ export class GoogleAuthGuard extends AuthGuard('google') {
 
   override getAuthenticateOptions(context: ExecutionContext): { state: string } {
     const request = context.switchToHttp().getRequest<Request>();
-    const next = typeof request.query.next === 'string' ? request.query.next : '/conta/pedidos';
     // Só um caminho interno vira `state` — mesma defesa contra open redirect
-    // já aplicada em `LoginForm` (ver `isSafeInternalPath` lá), porque
-    // `googleCallback` usa este valor pra montar um redirect de verdade.
-    const isSafeInternalPath = next.startsWith('/') && !next.startsWith('//');
-    return { state: isSafeInternalPath ? next : '/conta/pedidos' };
+    // do `LoginForm`, porque `googleCallback` usa este valor pra montar um
+    // redirect de verdade.
+    return { state: safeAfterLoginPath(request.query.next) };
   }
 }

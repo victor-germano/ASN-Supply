@@ -13,12 +13,13 @@ export function createTextMessageSender(config: ConfigService<EnvConfig, true>):
   if (accountSid && authToken && from) {
     return new TwilioTextMessageSender({ accountSid, authToken, from });
   }
-  if (config.get('NODE_ENV', { infer: true }) === 'production') {
+  const isProduction = config.get('NODE_ENV', { infer: true }) === 'production';
+  if (isProduction) {
     new Logger('MessagingModule').error(
       'Nenhum provedor de SMS configurado (TWILIO_*) — códigos de senha e lembretes por celular não serão enviados.',
     );
   }
-  return new ConsoleTextMessageSender();
+  return new ConsoleTextMessageSender(!isProduction);
 }
 
 @Module({

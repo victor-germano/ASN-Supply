@@ -12,9 +12,21 @@ import { EmailSender, type SendEmailParams } from './email-sender';
 export class ConsoleEmailSender extends EmailSender {
   private readonly logger = new Logger(ConsoleEmailSender.name);
 
+  /**
+   * `revealContent: false` em produção: o conteúdo traz link de
+   * redefinição de senha — quem lesse o log (painel da hospedagem, serviço
+   * de logs) poderia entrar na conta do cliente.
+   */
+  constructor(private readonly revealContent = true) {
+    super();
+  }
+
   async send(params: SendEmailParams): Promise<void> {
+    const content = this.revealContent
+      ? ` Conteúdo:\n${stripHtml(params.html)}`
+      : ' (conteúdo omitido em produção)';
     this.logger.warn(
-      `Nenhum provedor de e-mail configurado (RESEND_API_KEY/SMTP_HOST) — e-mail para "${params.to}" (${params.subject}) não foi enviado de verdade. Conteúdo:\n${stripHtml(params.html)}`,
+      `Nenhum provedor de e-mail configurado (RESEND_API_KEY/SMTP_HOST) — e-mail para "${params.to}" (${params.subject}) não foi enviado de verdade.${content}`,
     );
   }
 }

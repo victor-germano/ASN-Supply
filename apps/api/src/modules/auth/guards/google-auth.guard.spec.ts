@@ -58,5 +58,14 @@ describe('GoogleAuthGuard', () => {
         state: '/conta/pedidos',
       });
     });
+
+    it.each(['/\\evil.com', '/\t/evil.com'])(
+      'rejeita %j (o navegador transformaria em //evil.com)',
+      (next) => {
+        expect(guard.getAuthenticateOptions(fakeContext({ next }))).toEqual({
+          state: '/conta/pedidos',
+        });
+      },
+    );
   });
 });

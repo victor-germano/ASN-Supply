@@ -20,12 +20,13 @@ export function createEmailSender(config: ConfigService<EnvConfig, true>): Email
   // Em dev o console basta; em produção isto significa que "esqueci a
   // senha" e confirmação de pedido nunca chegam a ninguém — alto e claro
   // no log de inicialização em vez de descobrir pelo cliente reclamando.
-  if (config.get('NODE_ENV', { infer: true }) === 'production') {
+  const isProduction = config.get('NODE_ENV', { infer: true }) === 'production';
+  if (isProduction) {
     new Logger('EmailModule').error(
       'Nenhum provedor de e-mail configurado (RESEND_API_KEY ou SMTP_HOST) — e-mails não serão enviados.',
     );
   }
-  return new ConsoleEmailSender();
+  return new ConsoleEmailSender(!isProduction);
 }
 
 @Module({

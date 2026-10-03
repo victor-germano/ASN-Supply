@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -29,6 +31,7 @@ import {
   passwordResetEmail,
 } from '../email/templates';
 import type { JwtPayload } from './jwt-payload';
+import { LoginLockout } from './login-lockout';
 import type { GoogleProfile } from './strategies/google.strategy';
 
 const PASSWORD_RESET_EXPIRES_IN = '30m';
@@ -68,6 +71,7 @@ export class AuthService {
     private readonly emailSender: EmailSender,
     private readonly textMessageSender: TextMessageSender,
     private readonly resetCodes: PasswordResetCodeService,
+    private readonly loginLockout: LoginLockout,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResponse> {
@@ -125,6 +129,16 @@ export class AuthService {
   }
 
   async login(input: LoginInput): Promise<AuthResponse> {
+    if (this.loginLockout.isLocked(input.email)) {
+      throw new HttpException(
+        {
+          errorCode: 'LOGIN_LOCKED',
+          message:
+            'Por segurança, o acesso a esta conta foi pausado por 15 minutos após várias tentativas sem sucesso. Aguarde ou redefina sua senha.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const user = await this.usersRepository.findByEmail(input.email);
     // Roda `bcrypt.compare` mesmo quando o usuário não existe (contra um
     // hash fixo qualquer, `DUMMY_PASSWORD_HASH`) — sem isso, "e-mail não
@@ -139,11 +153,13 @@ export class AuthService {
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
     if (!user || !passwordMatches) {
+      this.loginLockout.recordFailure(input.email);
       throw new UnauthorizedException({
         errorCode: 'INVALID_CREDENTIALS',
         message: 'E-mail ou senha incorretos.',
       });
     }
+    this.loginLockout.clear(input.email);
     return this.issueTokenPair(user);
   }
 
@@ -292,6 +308,7 @@ export class AuthService {
   private async applyNewPassword(user: User, newPassword: string): Promise<AuthResponse> {
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     const updated = await this.usersRepository.updatePasswordHash(user.id, passwordHash);
+    this.loginLockout.clear(updated.email);
     // Aviso de segurança: se não foi o dono da conta, é assim que ele fica
     // sabendo. Fire-and-forget pelo mesmo motivo do e-mail de verificação
     // em `register` — a senha já foi trocada, falhar aqui não desfaz nada.
@@ -353,6 +370,7 @@ export class AuthService {
     try {
       return await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.config.get('JWT_SECRET', { infer: true }),
+        algorithms: ['HS256'],
       });
     } catch {
       throw new UnauthorizedException({

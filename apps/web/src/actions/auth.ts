@@ -33,7 +33,9 @@ export type AuthActionResult = { success: true } | { success: false; message: st
  */
 function friendlyError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
-    if (error.statusCode === 429) {
+    // Conta travada por excesso de senhas erradas: a mensagem da API já é
+    // a certa (15 min, sugere redefinir a senha).
+    if (error.statusCode === 429 && error.errorCode !== 'LOGIN_LOCKED') {
       return 'Muitas tentativas seguidas. Por segurança, aguarde 1 minuto e tente de novo.';
     }
     return error.message;

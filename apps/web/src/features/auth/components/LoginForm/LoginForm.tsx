@@ -10,6 +10,7 @@ import { FieldErrorText } from '@/components/form/FieldErrorText';
 import { FormAlert } from '@/components/form/FormAlert';
 import { loginAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
+import { isSafeInternalPath } from '@/lib/safeRedirect';
 import { SocialLoginButtons } from '../SocialLoginButtons/SocialLoginButtons';
 
 interface LoginFormValues {
@@ -22,16 +23,6 @@ interface LoginFormProps {
   defaultNext?: string;
   /** `/admin/entrar` esconde — criar conta não é uma ação que faça sentido oferecer ali. */
   showCreateAccountLink?: boolean;
-}
-
-// `startsWith('/')` sozinho também aceita `//evil.com` (URL
-// protocol-relative — o navegador resolve como um host externo), abrindo
-// um open redirect logo após o login. `!startsWith('//')` fecha essa
-// brecha mantendo só caminhos internos de verdade. Reaproveitado tanto
-// pelo `next` do login normal (`onSubmit`) quanto pelo `next` repassado
-// pro botão do Google (`SocialLoginButtons`) — mesma regra, duas origens.
-function isSafeInternalPath(value: string | null): value is string {
-  return !!value && value.startsWith('/') && !value.startsWith('//');
 }
 
 /**

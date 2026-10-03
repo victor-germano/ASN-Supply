@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { decidedConsentState } from './e2e/consent-state';
 
 /**
  * Porta 3100 é a porta própria da ASN (`pnpm dev`, ver README) — fora das
@@ -23,6 +24,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL,
+    // Escolha de cookies já feita (ver e2e/consent-state.ts).
+    storageState: decidedConsentState,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: 15_000,

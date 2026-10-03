@@ -17,6 +17,60 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
+### Cookies (LGPD) e reforço de segurança (03/10/2026)
+
+Pedido do usuário: "sistema de cookies completo" para dar credibilidade, e
+depois "verifique e reforce a vulnerabilidade contra ataques ao máximo".
+
+**Cookies**
+
+- Aviso no rodapé da tela na primeira visita: "Aceitar todos", "Rejeitar
+  opcionais" (mesmo peso visual, exigência da ANPD) e "Personalizar".
+- Preferências: essenciais (travados), estatísticas (Plausible, desligado
+  por padrão) e publicidade (informativo: não usamos). Escolha em
+  `asn_consent` (6 meses, versionado). Plausible só carrega com aceite.
+- Página `/politica-de-cookies` com a tabela do que o site guarda; botão
+  "Preferências de cookies" no rodapé reabre a escolha.
+- E2E: `cookies.spec.ts`; os demais specs começam com a escolha já feita
+  (`e2e/consent-state.ts`) para o aviso não cobrir botões.
+
+**Segurança**
+
+- Dependências: 49 vulnerabilidades (3 críticas, entre elas execução remota
+  de código no Next em Windows e prototype pollution no Swiper) → 3
+  moderadas, sem caminho de ataque (SSE do Nest não usado; `file-type` só
+  via `FileTypeValidator`, não usado). Next 15.5.27, Swiper 12, overrides
+  no `package.json` e espelhados no `pnpm-workspace.yaml` (pnpm 10+).
+- Login: trava por conta (8 erros em 15 min → 15 min bloqueado, mesmo com
+  senha certa; redefinir a senha destrava) — pega ataque que troca de IP.
+  Testado ao vivo: 9ª tentativa = 429.
+- IP do visitante: o site usava o 1º valor de `X-Forwarded-For`, que o
+  próprio visitante escreve — dava para zerar o limite de login a cada
+  tentativa. Agora o último (posto pela hospedagem), `lib/clientIp.ts`.
+- Open redirect: `/\golpe.com` passava no filtro do `?next=` (login e
+  Google). Regra única com testes no site e na API; o `state` do Google é
+  revalidado na volta.
+- JWT com algoritmo fixo (HS256) na assinatura e na verificação; token
+  `alg: none` testado ao vivo = 401.
+- E-mails: valores dinâmicos escapados (código de rastreio etc.).
+  JSON-LD do breadcrumb escapado como o da página de produto.
+- Avaliações: fotos/vídeos só da nossa Cloudinary, no máximo 4/2 (uma URL
+  qualquer rastrearia visitantes e, fora de `remotePatterns`, derrubaria a
+  página do produto). Link de rastreio só `http(s)`.
+- Cabeçalhos do site: CSP (scripts, conexões e imagens só de origens
+  conhecidas, sem iframe, formulários só para o próprio site), COOP,
+  Permissions-Policy, sem `X-Powered-By`; HSTS e `upgrade-insecure-requests`
+  só quando `NEXT_PUBLIC_SITE_URL` é https. Nonce na CSP foi descartado:
+  tornaria todas as páginas dinâmicas (fim do cache do catálogo).
+- Produção: API não sobe sem `INTERNAL_API_KEY` nem com o `JWT_SECRET` do
+  `.env.example`; `TRUST_PROXY_HOPS` para hospedagem com balanceador;
+  e-mail/SMS de console não registram conteúdo (links/códigos de senha)
+  em log de produção.
+- Varredura de segredos no repositório e no histórico do git: nada.
+- Ambiente de teste: reseedar o banco depois do `next build` deixa IDs de
+  marca antigos no cache de dados do site (2 e2e do admin falharam por
+  isso); limpar `.next/cache/fetch-cache` resolveu. Não ocorre em uso real.
+
 ### Dados reais da loja (02/10/2026)
 
 - E-mail público da loja (asn.supply.commerce@gmail.com) em rodapé, FAQ,

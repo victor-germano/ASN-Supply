@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 import type { OrderStatus } from '@asn/types';
 
 const STATUSES: OrderStatus[] = [
@@ -22,8 +22,14 @@ export class UpdateOrderDto {
   @MaxLength(100)
   trackingCode?: string | null;
 
+  // Vira um link clicável na página do pedido do cliente: só http(s), nunca
+  // `javascript:` ou similar.
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { message: 'Informe o link completo de rastreio, começando com https://' },
+  )
   trackingUrl?: string | null;
 }

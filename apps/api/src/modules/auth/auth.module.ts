@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { LoginLockout } from './login-lockout';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -46,6 +47,10 @@ import type { EnvConfig } from '../../config/env.validation';
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig, true>) => ({
         secret: config.get('JWT_SECRET', { infer: true }),
+        // Algoritmo fixo nas duas pontas: um token forjado com outro `alg`
+        // (ex.: "none") é recusado em vez de depender do default da lib.
+        signOptions: { algorithm: 'HS256' },
+        verifyOptions: { algorithms: ['HS256'] },
       }),
     }),
   ],
@@ -53,6 +58,7 @@ import type { EnvConfig } from '../../config/env.validation';
   providers: [
     AuthService,
     PasswordResetCodeService,
+    { provide: LoginLockout, useFactory: () => new LoginLockout() },
     JwtStrategy,
     GoogleStrategy,
     JwtAuthGuard,

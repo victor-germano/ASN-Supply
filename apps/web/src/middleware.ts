@@ -6,6 +6,7 @@ import {
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   authCookieOptions,
 } from '@/lib/authCookies';
+import { pickClientIp } from '@/lib/clientIp';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1';
 
@@ -175,10 +176,10 @@ function internalApiHeaders(request: NextRequest): HeadersInit {
   const internalKey = process.env.INTERNAL_API_KEY;
   if (internalKey) {
     headers['x-asn-internal-key'] = internalKey;
-    headers['x-asn-client-ip'] =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip')?.trim() ||
-      'unknown';
+    headers['x-asn-client-ip'] = pickClientIp(
+      request.headers.get('x-forwarded-for'),
+      request.headers.get('x-real-ip'),
+    );
   }
   return headers;
 }

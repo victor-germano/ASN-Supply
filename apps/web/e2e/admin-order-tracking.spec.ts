@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { addFirstProductToCart, completeCheckout, loginAsAdmin, signUp } from './helpers';
+import { decidedConsentState } from './consent-state';
 
 test.describe('Admin marca pedido como enviado com rastreio', () => {
   test('rastreio preenchido pelo admin aparece na confirmação do cliente', async ({
@@ -13,7 +14,7 @@ test.describe('Admin marca pedido como enviado com rastreio', () => {
     // Sessão separada pra não perder o login do cliente na página principal
     // — a mesma verificação de posse que protege `GET /orders/:id` exige
     // reabrir como o próprio cliente depois, não como o admin.
-    const adminContext = await browser.newContext();
+    const adminContext = await browser.newContext({ storageState: decidedConsentState });
     const adminPage = await adminContext.newPage();
     await loginAsAdmin(adminPage);
     await adminPage.goto(`/admin/pedidos/${orderId}`);

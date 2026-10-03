@@ -27,6 +27,9 @@ async function bootstrap(): Promise<void> {
   app.use(urlencoded({ extended: true, limit: '4mb' }));
   const config = app.get(ConfigService<EnvConfig, true>);
 
+  const trustProxyHops = config.get('TRUST_PROXY_HOPS', { infer: true });
+  if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
+
   app.use(helmet());
   // Imagens enviadas pelo painel sem Cloudinary (só em desenvolvimento —
   // ver `LocalDiskImageUploader`). `cross-origin` porque o site (outra

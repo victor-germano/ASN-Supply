@@ -91,6 +91,12 @@ const envSchema = z
       .string()
       .min(32, 'INTERNAL_API_KEY deve ter ao menos 32 caracteres')
       .optional(),
+    // Quantos proxies (balanceador da hospedagem, Cloudflare...) ficam na
+    // frente da API. 0 = nenhum: o IP da conexão é o do cliente. Com
+    // proxy e 0, todo acesso direto à API pareceria vir de um IP só.
+    // Nunca maior que o número real de proxies, senão o cliente forja o IP
+    // via `X-Forwarded-For` e escapa do limite de tentativas.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
     // LEGADO — não usada mais. O acesso administrativo agora é Role.ADMIN +
     // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário
     // em `apps/api/src/modules/admin/admin.module.ts`.
@@ -100,7 +106,22 @@ const envSchema = z
     message:
       'PIX_KEY exige PIX_RECEIVER_NAME e PIX_RECEIVER_CITY (aparecem no app do banco de quem paga)',
     path: ['PIX_KEY'],
-  });
+  })
+  // Em produção sem a chave, o limite de login vale para a loja inteira
+  // (ver `throttle-identity.ts`) — melhor não subir do que subir assim.
+  .refine((env) => env.NODE_ENV !== 'production' || env.INTERNAL_API_KEY, {
+    message: 'INTERNAL_API_KEY é obrigatória em produção (mesmo valor no .env do site)',
+    path: ['INTERNAL_API_KEY'],
+  })
+  // O valor do `.env.example` é público (está no GitHub): com ele, qualquer
+  // um assinaria um token de administrador.
+  .refine(
+    (env) => env.NODE_ENV !== 'production' || !env.JWT_SECRET.startsWith('troque-este-valor'),
+    {
+      message: 'JWT_SECRET ainda é o valor de exemplo — gere um segredo próprio para produção',
+      path: ['JWT_SECRET'],
+    },
+  );
 
 export type EnvConfig = z.infer<typeof envSchema>;
 

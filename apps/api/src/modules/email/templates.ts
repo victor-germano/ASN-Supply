@@ -21,8 +21,22 @@ function layout(
   `;
 }
 
+/**
+ * Todo valor dinâmico passa por aqui antes de entrar no HTML: código de
+ * rastreio e afins são digitados no admin, e um `<` ou `"` neles não pode
+ * virar marcação/atributo no e-mail do cliente.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function button(url: string, label: string): string {
-  return `<a href="${url}" style="display:inline-block;background-color:#16160F;color:#FDFCFA;padding:12px 24px;text-decoration:none;font-size:14px;margin:16px 0;">${label}</a>`;
+  return `<a href="${escapeHtml(url)}" style="display:inline-block;background-color:#16160F;color:#FDFCFA;padding:12px 24px;text-decoration:none;font-size:14px;margin:16px 0;">${label}</a>`;
 }
 
 export function passwordResetEmail(resetUrl: string): { subject: string; html: string } {
@@ -49,7 +63,7 @@ export function passwordChangedEmail(forgotPasswordUrl: string): { subject: stri
       <p style="font-size:15px;color:#16160F;">A senha da sua conta acabou de ser alterada.</p>
       <p style="font-size:15px;color:#16160F;">Por segurança, todos os outros aparelhos conectados à sua conta foram desconectados.</p>
     `,
-      `Não foi você? <a href="${forgotPasswordUrl}" style="color:#16160F;">Redefina sua senha agora</a> e responda este e-mail para falar com a gente.`,
+      `Não foi você? <a href="${escapeHtml(forgotPasswordUrl)}" style="color:#16160F;">Redefina sua senha agora</a> e responda este e-mail para falar com a gente.`,
     ),
   };
 }
@@ -73,8 +87,8 @@ export function orderConfirmationEmail(params: {
   return {
     subject: `Pedido ${params.orderCode} confirmado — ASN Supply`,
     html: layout(`
-      <p style="font-size:15px;color:#16160F;">Recebemos seu pedido <strong>${params.orderCode}</strong>.</p>
-      <p style="font-size:15px;color:#16160F;">Total: <strong>${params.totalLabel}</strong></p>
+      <p style="font-size:15px;color:#16160F;">Recebemos seu pedido <strong>${escapeHtml(params.orderCode)}</strong>.</p>
+      <p style="font-size:15px;color:#16160F;">Total: <strong>${escapeHtml(params.totalLabel)}</strong></p>
       ${button(params.orderUrl, 'Ver pedido')}
     `),
   };
@@ -88,8 +102,8 @@ export function orderShippedEmail(params: {
   return {
     subject: `Pedido ${params.orderCode} a caminho — ASN Supply`,
     html: layout(`
-      <p style="font-size:15px;color:#16160F;">Seu pedido <strong>${params.orderCode}</strong> foi enviado.</p>
-      ${params.trackingCode ? `<p style="font-size:15px;color:#16160F;">Código de rastreio: <strong>${params.trackingCode}</strong></p>` : ''}
+      <p style="font-size:15px;color:#16160F;">Seu pedido <strong>${escapeHtml(params.orderCode)}</strong> foi enviado.</p>
+      ${params.trackingCode ? `<p style="font-size:15px;color:#16160F;">Código de rastreio: <strong>${escapeHtml(params.trackingCode)}</strong></p>` : ''}
       ${button(params.orderUrl, 'Acompanhar pedido')}
     `),
   };

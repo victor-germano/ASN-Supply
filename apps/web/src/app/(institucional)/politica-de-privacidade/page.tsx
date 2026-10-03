@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { STORE_CONTACT_EMAIL } from '@/lib/storeInfo';
+import Link from 'next/link';
 import { Heading, Text } from '@asn/ui';
 
 export const metadata: Metadata = {
@@ -31,10 +32,17 @@ export default function PrivacyPolicyPage() {
           1. Dados que coletamos
         </Heading>
         <Text tone="muted">
-          Coletamos dados fornecidos diretamente por você (nome, e-mail, telefone, endereço, dados
-          de pagamento tokenizados) e dados coletados automaticamente durante a navegação (endereço
-          IP, dispositivo, páginas visitadas, produtos visualizados), usados para personalizar sua
-          experiência de compra.
+          Coletamos dados fornecidos diretamente por você (nome, e-mail, celular e endereço) e dados
+          coletados automaticamente durante a navegação (endereço IP, dispositivo, páginas
+          visitadas, produtos visualizados), usados para processar seus pedidos e personalizar sua
+          experiência de compra. Não recebemos nem guardamos dados de cartão ou bancários.
+        </Text>
+        <Text tone="muted">
+          O que fica guardado no seu navegador (cookies e armazenamento local) está detalhado na{' '}
+          <Link href="/politica-de-cookies" className="underline underline-offset-4">
+            Política de Cookies
+          </Link>
+          .
         </Text>
       </section>
 

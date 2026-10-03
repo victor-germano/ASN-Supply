@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { completeCheckout, loginAsAdmin, signUp } from './helpers';
+import { decidedConsentState } from './consent-state';
 
 /**
  * Regressão: `OrderItem` apontava pra variante/produto sem `onDelete`, e a
@@ -34,7 +35,7 @@ test.describe('Produto que já tem pedido', () => {
     await expect(page).toHaveURL('/admin/produtos');
 
     // Cliente (outra sessão) compra esse produto.
-    const customerContext = await browser.newContext();
+    const customerContext = await browser.newContext({ storageState: decidedConsentState });
     const customer = await customerContext.newPage();
     await signUp(customer);
     await customer.goto(`/produtos/${slug}`);

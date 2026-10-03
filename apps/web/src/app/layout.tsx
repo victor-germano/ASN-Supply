@@ -7,6 +7,7 @@ import { CartSync } from '@/features/cart/components/CartSync/CartSync';
 import { Header } from '@/components/layout/Header/Header';
 import { Footer } from '@/components/layout/Footer/Footer';
 import { Analytics } from '@/components/Analytics';
+import { ConsentProvider } from '@/features/consent/ConsentProvider';
 import { CompareBar } from '@/features/compare/components/CompareBar/CompareBar';
 import './globals.css';
 
@@ -64,16 +65,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={`${displayFont.variable} ${sansFont.variable}`}>
       <body>
-        <QueryProvider>
-          <StoreHydration />
-          <WishlistSync />
-          <CartSync />
-          <Header />
-          {children}
-          <Footer />
-        </QueryProvider>
-        <CompareBar />
-        <Analytics />
+        <ConsentProvider>
+          <QueryProvider>
+            <StoreHydration />
+            <WishlistSync />
+            <CartSync />
+            <Header />
+            {children}
+            <Footer />
+          </QueryProvider>
+          <CompareBar />
+          <Analytics />
+        </ConsentProvider>
       </body>
     </html>
   );
