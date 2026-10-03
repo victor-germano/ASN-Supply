@@ -12,6 +12,8 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { UsersModule } from '../users/users.module';
 import { EmailModule } from '../email/email.module';
+import { MessagingModule } from '../messaging/messaging.module';
+import { PasswordResetCodeService } from './password-reset-code.service';
 import type { EnvConfig } from '../../config/env.validation';
 
 /**
@@ -37,6 +39,7 @@ import type { EnvConfig } from '../../config/env.validation';
   imports: [
     UsersModule,
     EmailModule,
+    MessagingModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -49,6 +52,7 @@ import type { EnvConfig } from '../../config/env.validation';
   controllers: [AuthController],
   providers: [
     AuthService,
+    PasswordResetCodeService,
     JwtStrategy,
     GoogleStrategy,
     JwtAuthGuard,

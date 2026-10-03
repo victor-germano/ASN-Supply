@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
@@ -8,6 +8,9 @@ import type { User } from '../../../generated/client';
 import { AuthService } from './auth.service';
 import type { UsersRepository } from '../users/users.repository';
 import type { EmailSender } from '../email/email-sender';
+import type { TextMessageSender } from '../messaging/text-message-sender';
+import type { PasswordResetCodeService } from './password-reset-code.service';
+import type { RegisterInput } from '@asn/types';
 
 const JWT_SECRET = 'a-test-secret-with-at-least-32-characters';
 
@@ -36,18 +39,66 @@ function fakeUser(overrides: Partial<User> = {}): User {
     googleId: null,
     appleId: null,
     emailVerifiedAt: null,
+    phone: null,
+    marketingOptIn: false,
+    marketingOptInAt: null,
+    termsAcceptedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
   } as User;
 }
 
+function fakeTextSender(): TextMessageSender {
+  return { send: vi.fn().mockResolvedValue(undefined) } as unknown as TextMessageSender;
+}
+
+function fakeResetCodes(
+  overrides: Partial<PasswordResetCodeService> = {},
+): PasswordResetCodeService {
+  return {
+    issue: vi.fn().mockResolvedValue('123456'),
+    consume: vi.fn().mockResolvedValue('invalid'),
+    ...overrides,
+  } as unknown as PasswordResetCodeService;
+}
+
 function buildService(
   usersRepository: Partial<UsersRepository>,
   emailSender: EmailSender = fakeEmailSender(),
+  textSender: TextMessageSender = fakeTextSender(),
+  resetCodes: PasswordResetCodeService = fakeResetCodes(),
 ) {
   const jwtService = new JwtService({ secret: JWT_SECRET });
-  return new AuthService(usersRepository as UsersRepository, jwtService, fakeConfig(), emailSender);
+  return new AuthService(
+    usersRepository as UsersRepository,
+    jwtService,
+    fakeConfig(),
+    emailSender,
+    textSender,
+    resetCodes,
+  );
+}
+
+function signupInput(overrides: Partial<RegisterInput> = {}): RegisterInput {
+  return {
+    firstName: 'Camila',
+    lastName: 'Rocha',
+    email: 'camila@example.com',
+    phone: '(11) 99888-7766',
+    password: 'senha-forte-123',
+    address: {
+      zipCode: '01310-100',
+      street: 'Avenida Paulista',
+      number: '1000',
+      neighborhood: 'Bela Vista',
+      city: 'São Paulo',
+      state: 'SP',
+    },
+    acceptTerms: true,
+    marketingOptIn: false,
+    ...overrides,
+  };
 }
 
 /** Extrai o `?token=` do link que `requestPasswordReset` mandou por e-mail. */
@@ -63,11 +114,7 @@ describe('AuthService', () => {
       const create = vi.fn().mockResolvedValue(created);
       const service = buildService({ findByEmail: vi.fn().mockResolvedValue(null), create });
 
-      const result = await service.register({
-        name: 'Camila Rocha',
-        email: 'camila@example.com',
-        password: 'senha-forte-123',
-      });
+      const result = await service.register(signupInput({ marketingOptIn: true }));
 
       expect(result.user).toEqual({
         id: created.id,
@@ -76,11 +123,21 @@ describe('AuthService', () => {
         role: created.role,
         avatarUrl: created.avatarUrl,
         emailVerifiedAt: null,
+        phone: created.phone,
+        marketingOptIn: created.marketingOptIn,
       });
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
+      // Nome + sobrenome viram o nome completo; celular sai normalizado
+      // (E.164); endereço e consentimento chegam ao repositório.
       expect(create).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Camila Rocha', email: 'camila@example.com' }),
+        expect.objectContaining({
+          name: 'Camila Rocha',
+          email: 'camila@example.com',
+          phone: '+5511998887766',
+          marketingOptIn: true,
+          address: expect.objectContaining({ zipCode: '01310-100', number: '1000' }),
+        }),
       );
       // Senha nunca guardada em texto puro — só o hash chega no repositório.
       const passedHash = create.mock.calls[0]![0].passwordHash as string;
@@ -91,13 +148,96 @@ describe('AuthService', () => {
     it('rejeita quando o e-mail já está cadastrado', async () => {
       const service = buildService({ findByEmail: vi.fn().mockResolvedValue(fakeUser()) });
 
+      await expect(service.register(signupInput())).rejects.toThrow(ConflictException);
+    });
+
+    it('recusa celular inválido (ex: telefone fixo) antes de criar qualquer coisa', async () => {
+      const create = vi.fn();
+      const service = buildService({ findByEmail: vi.fn().mockResolvedValue(null), create });
+
+      await expect(service.register(signupInput({ phone: '(11) 3333-4444' }))).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('esqueci a senha por SMS', () => {
+    const withPhone = () =>
+      fakeUser({ passwordHash: '$2b$04$abcdefghijklmnopqrstuu', phone: '+5511998887766' });
+
+    it('envia o código de 6 dígitos para o celular cadastrado', async () => {
+      const textSender = fakeTextSender();
+      const service = buildService(
+        { findByEmail: vi.fn().mockResolvedValue(withPhone()) },
+        fakeEmailSender(),
+        textSender,
+      );
+
+      await service.requestPasswordReset('camila@example.com', 'sms');
+
+      expect(textSender.send).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '+5511998887766', body: expect.stringContaining('123456') }),
+      );
+    });
+
+    it('conta sem celular: não envia nada e não revela isso (resposta igual)', async () => {
+      const textSender = fakeTextSender();
+      const emailSender = fakeEmailSender();
+      const service = buildService(
+        { findByEmail: vi.fn().mockResolvedValue(fakeUser({ passwordHash: 'x', phone: null })) },
+        emailSender,
+        textSender,
+      );
+
       await expect(
-        service.register({
-          name: 'Outro',
-          email: 'camila@example.com',
-          password: 'senha-forte-123',
+        service.requestPasswordReset('camila@example.com', 'sms'),
+      ).resolves.toBeUndefined();
+      expect(textSender.send).not.toHaveBeenCalled();
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('teto de SMS por hora atingido: não envia', async () => {
+      const textSender = fakeTextSender();
+      const service = buildService(
+        { findByEmail: vi.fn().mockResolvedValue(withPhone()) },
+        fakeEmailSender(),
+        textSender,
+        fakeResetCodes({ issue: vi.fn().mockResolvedValue(null) }),
+      );
+
+      await service.requestPasswordReset('camila@example.com', 'sms');
+      expect(textSender.send).not.toHaveBeenCalled();
+    });
+
+    it('código certo redefine a senha e abre sessão; código errado é recusado', async () => {
+      let current = withPhone();
+      const repo: Partial<UsersRepository> = {
+        findByEmail: vi.fn(async () => current),
+        updatePasswordHash: vi.fn(async (_id: string, passwordHash: string) => {
+          current = { ...current, passwordHash };
+          return current;
         }),
-      ).rejects.toThrow(ConflictException);
+      };
+      const consume = vi.fn().mockResolvedValueOnce('invalid').mockResolvedValueOnce('ok');
+      const service = buildService(
+        repo,
+        fakeEmailSender(),
+        fakeTextSender(),
+        fakeResetCodes({ consume }),
+      );
+
+      await expect(
+        service.resetPasswordWithCode('camila@example.com', '000000', 'senha-nova-123'),
+      ).rejects.toThrow(UnauthorizedException);
+
+      const result = await service.resetPasswordWithCode(
+        'camila@example.com',
+        '123456',
+        'senha-nova-123',
+      );
+      expect(result.accessToken).toBeTruthy();
+      expect(await bcrypt.compare('senha-nova-123', current.passwordHash!)).toBe(true);
     });
   });
 
@@ -218,7 +358,7 @@ describe('AuthService', () => {
       const registerResult = await buildService({
         findByEmail: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(user),
-      }).register({ name: user.name, email: user.email, password: 'senha-forte-123' });
+      }).register(signupInput({ email: user.email }));
 
       const service = buildService({ findById: vi.fn().mockResolvedValue(user) });
       const result = await service.refresh(registerResult.refreshToken);
@@ -237,7 +377,7 @@ describe('AuthService', () => {
       const registerResult = await buildService({
         findByEmail: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(user),
-      }).register({ name: user.name, email: user.email, password: 'senha-forte-123' });
+      }).register(signupInput({ email: user.email }));
 
       const service = buildService({ findById: vi.fn().mockResolvedValue(user) });
 
@@ -257,7 +397,7 @@ describe('AuthService', () => {
       const registerResult = await buildService({
         findByEmail: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(user),
-      }).register({ name: user.name, email: user.email, password: 'senha-forte-123' });
+      }).register(signupInput({ email: user.email }));
 
       const service = buildService({ findById: vi.fn().mockResolvedValue(null) });
 
@@ -336,11 +476,7 @@ describe('AuthService', () => {
       const session = await buildService({
         findByEmail: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(user),
-      }).register({
-        name: user.name,
-        email: user.email,
-        password: 'senha-forte-123',
-      });
+      }).register(signupInput({ email: user.email }));
       const service = buildService({ findById: vi.fn().mockResolvedValue(user) });
 
       await expect(service.resetPassword(session.accessToken, 'nova-senha-123')).rejects.toThrow(

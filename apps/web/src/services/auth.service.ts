@@ -1,4 +1,10 @@
-import type { AuthResponse, AuthenticatedUser, LoginInput, RegisterInput } from '@asn/types';
+import type {
+  AuthResponse,
+  AuthenticatedUser,
+  LoginInput,
+  PasswordResetChannel,
+  RegisterInput,
+} from '@asn/types';
 import { serverFetch } from './serverFetch';
 import { authenticatedFetch } from './authenticatedFetch';
 
@@ -31,16 +37,40 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   }
 }
 
-/** Sempre resolve (nunca lança) — a API já devolve 204 exista o e-mail ou não, mesma defesa contra enumeração de `login`. */
-export function forgotPassword(email: string): Promise<void> {
+/** A API devolve 204 exista o e-mail ou não (e tenha celular ou não) — mesma defesa contra enumeração de `login`. */
+export function forgotPassword(email: string, channel: PasswordResetChannel): Promise<void> {
   return serverFetch<void>('/auth/forgot-password', {
-    init: { method: 'POST', body: JSON.stringify({ email }) },
+    init: { method: 'POST', body: JSON.stringify({ email, channel }) },
   });
 }
 
 export function resetPassword(token: string, newPassword: string): Promise<AuthResponse> {
   return serverFetch<AuthResponse>('/auth/reset-password', {
     init: { method: 'POST', body: JSON.stringify({ token, newPassword }) },
+  });
+}
+
+/** Variante por SMS: e-mail + código de 6 dígitos recebido no celular. */
+export function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<AuthResponse> {
+  return serverFetch<AuthResponse>('/auth/reset-password/code', {
+    init: { method: 'POST', body: JSON.stringify({ email, code, newPassword }) },
+  });
+}
+
+export function updatePreferences(marketingOptIn: boolean): Promise<AuthenticatedUser> {
+  return authenticatedFetch<AuthenticatedUser>('/auth/me/preferences', {
+    init: { method: 'PATCH', body: JSON.stringify({ marketingOptIn }) },
+  });
+}
+
+/** Interesse de cliente logado (produto visto / adicionado ao carrinho) — base do lembrete por SMS. */
+export function trackActivity(productId: string, type: 'PRODUCT_VIEW' | 'CART_ADD'): Promise<void> {
+  return authenticatedFetch<void>('/me/activity', {
+    init: { method: 'POST', body: JSON.stringify({ productId, type }) },
   });
 }
 

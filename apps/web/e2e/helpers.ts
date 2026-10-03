@@ -25,13 +25,44 @@ export const E2E_ADMIN_PASSWORD = 'SenhaAdminE2E123!';
 /** Cupom fixo (10% off, sem mínimo/validade) semeado junto com a conta admin. */
 export const E2E_COUPON_CODE = 'E2E10';
 
-/** Cria uma conta nova e fica autenticado — mesmo fluxo de `auth.spec.ts`. */
-export async function signUp(page: Page, name = 'Cliente E2E'): Promise<string> {
-  const email = uniqueEmail();
+export interface SignupFormOptions {
+  firstName?: string;
+  email?: string;
+  marketingOptIn?: boolean;
+  /** `false` deixa a caixa dos termos desmarcada (pra testar a validação). */
+  acceptTerms?: boolean;
+}
+
+/**
+ * Preenche o cadastro completo (sem enviar). O ViaCEP é bloqueado de
+ * propósito: o teste não pode depender de um serviço externo, e com ele
+ * fora o formulário cai no preenchimento manual — que também é o caminho
+ * que precisa funcionar.
+ */
+export async function fillSignupForm(page: Page, options: SignupFormOptions = {}): Promise<string> {
+  const email = options.email ?? uniqueEmail();
+  await page.route('**/viacep.com.br/**', (route) => route.abort());
   await page.goto('/criar-conta');
-  await page.getByLabel('Nome').fill(name);
+  await page.getByLabel('Nome', { exact: true }).fill(options.firstName ?? 'Cliente');
+  await page.getByLabel('Sobrenome', { exact: true }).fill('E2E');
   await page.getByLabel('E-mail').fill(email);
-  await page.getByLabel('Senha').fill('SenhaForte123!');
+  await page.getByLabel('Celular', { exact: true }).fill('11998887766');
+  await page.getByLabel('CEP', { exact: true }).fill('01310-100');
+  await page.getByLabel('Rua', { exact: true }).fill('Avenida Paulista');
+  await page.getByLabel('Número', { exact: true }).fill('1000');
+  await page.getByLabel('Bairro', { exact: true }).fill('Bela Vista');
+  await page.getByLabel('Cidade', { exact: true }).fill('São Paulo');
+  await page.getByLabel('UF', { exact: true }).fill('SP');
+  await page.getByLabel('Senha', { exact: true }).fill('SenhaForte123!');
+  await page.getByLabel('Confirme a senha').fill('SenhaForte123!');
+  if (options.acceptTerms !== false) await page.getByLabel(/Li e aceito os/).check();
+  if (options.marketingOptIn) await page.getByLabel(/Quero receber por SMS/).check();
+  return email;
+}
+
+/** Cria uma conta nova e fica autenticado — mesmo fluxo de `auth.spec.ts`. */
+export async function signUp(page: Page, firstName = 'Cliente'): Promise<string> {
+  const email = await fillSignupForm(page, { firstName });
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await expect(page).toHaveURL(/\/conta\/pedidos/);
   return email;
@@ -92,10 +123,11 @@ export interface CompleteCheckoutOptions {
 }
 
 /**
- * Percorre os 3 passos do checkout (contato/endereço digitado → frete →
- * revisão) e confirma o pedido. Assume uma conta já autenticada com pelo
- * menos 1 item no carrinho (ver `addFirstProductToCart`). Devolve o id do
- * pedido, extraído da URL de confirmação (`/pedido/[id]`).
+ * Percorre os 3 passos do checkout (contato/endereço → frete → revisão) e
+ * confirma o pedido. Assume uma conta criada por `signUp` com pelo menos 1
+ * item no carrinho (ver `addFirstProductToCart`) — e o cadastro já salva o
+ * endereço principal, que o checkout pré-seleciona sozinho. Devolve o id
+ * do pedido, extraído da URL de confirmação (`/pedido/[id]`).
  */
 export async function completeCheckout(
   page: Page,
@@ -103,17 +135,14 @@ export async function completeCheckout(
 ): Promise<string> {
   await page.goto('/checkout');
 
-  // Passo 1: contato + endereço digitado (sem endereço salvo ainda).
+  // Passo 1: contato + endereço salvo no cadastro (pré-selecionado). Espera
+  // a seleção acontecer antes de seguir — o seletor carrega os endereços
+  // depois da página, e os campos manuais somem quando ele seleciona.
   await page.getByLabel('Nome completo').fill('Cliente E2E');
   await page.getByLabel('E-mail').fill(uniqueEmail());
   await page.getByLabel('Telefone (com DDD)').fill('11987654321');
-  await page.getByLabel('Quem recebe').fill('Cliente E2E');
-  await page.getByLabel('CEP').fill('01310-100');
-  await page.getByLabel('Rua').fill('Avenida Paulista');
-  await page.getByLabel('Número').fill('1000');
-  await page.getByLabel('Bairro').fill('Bela Vista');
-  await page.getByLabel('Cidade').fill('São Paulo');
-  await page.getByLabel('UF').fill('SP');
+  await expect(page.getByText('Avenida Paulista, 1000')).toBeVisible();
+  await expect(page.getByLabel('Quem recebe')).toHaveCount(0);
   await page.getByRole('button', { name: 'Continuar' }).click();
 
   // Passo 2: frete — mantém a opção padrão já selecionada.

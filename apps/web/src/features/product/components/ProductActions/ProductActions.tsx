@@ -7,6 +7,8 @@ import { useCartStore } from '@/stores/cartStore';
 import { useWishlistStore } from '@/stores/wishlistStore';
 import { useCompareStore, MAX_COMPARE_ITEMS } from '@/stores/compareStore';
 import { CompareIcon, HeartIcon, ShareIcon } from '@/components/icons';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { trackActivityAction } from '@/actions/auth';
 
 export function ProductActions({ product }: { product: ProductDetail }) {
   const colors = useMemo(() => {
@@ -29,6 +31,7 @@ export function ProductActions({ product }: { product: ProductDetail }) {
   const selectedVariant = sizesForColor.find((variant) => variant.size === selectedSize) ?? null;
 
   const addItem = useCartStore((state) => state.addItem);
+  const { user } = useCurrentUser();
   const isFavorited = useWishlistStore((state) => state.productIds.includes(product.id));
   const toggleWishlist = useWishlistStore((state) => state.toggle);
   const isComparing = useCompareStore((state) => state.isComparing(product.id));
@@ -55,6 +58,8 @@ export function ProductActions({ product }: { product: ProductDetail }) {
       1,
     );
     setFeedback('Adicionado ao carrinho.');
+    // Só com sessão (ver `RegisterProductView`) — a action ignora falhas.
+    if (user) void trackActivityAction(product.id, 'CART_ADD');
   }
 
   async function handleShare() {

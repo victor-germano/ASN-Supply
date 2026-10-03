@@ -11,6 +11,8 @@ const ADMIN: AuthenticatedUser = {
   role: 'ADMIN',
   avatarUrl: null,
   emailVerifiedAt: null,
+  phone: null,
+  marketingOptIn: false,
 };
 
 function buildController(repository: Partial<AdminUsersRepository>) {

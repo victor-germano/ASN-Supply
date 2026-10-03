@@ -1,9 +1,24 @@
 import { createHash } from 'node:crypto';
-import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
-import type { AuthResponse, AuthenticatedUser } from '@asn/types';
+import type {
+  AuthResponse,
+  AuthenticatedUser,
+  PasswordResetChannel,
+  RegisterInput,
+} from '@asn/types';
+import { normalizeBrazilianMobile } from '../messaging/phone';
+import { TextMessageSender } from '../messaging/text-message-sender';
+import { passwordResetCodeSms } from '../messaging/templates';
+import { PasswordResetCodeService, RESET_CODE_TTL_MINUTES } from './password-reset-code.service';
 import { Prisma, type User } from '../../../generated/client';
 import type { EnvConfig } from '../../config/env.validation';
 import { UsersRepository } from '../users/users.repository';
@@ -26,12 +41,6 @@ const BCRYPT_ROUNDS = 12;
 // o e-mail não existe (ver comentário em `login`). Gerado uma vez com
 // `bcrypt.hash('dummy-password-for-timing-normalization', 12)`.
 const DUMMY_PASSWORD_HASH = '$2b$12$mlAqiITfTjOmj3s8Bd2J6.q1obuD5KVPpFcNW4XuobXuS6QJBaV2S';
-
-export interface RegisterInput {
-  name: string;
-  email: string;
-  password: string;
-}
 
 export interface LoginInput {
   email: string;
@@ -57,23 +66,35 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly emailSender: EmailSender,
+    private readonly textMessageSender: TextMessageSender,
+    private readonly resetCodes: PasswordResetCodeService,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResponse> {
+    const phone = normalizeBrazilianMobile(input.phone);
+    if (!phone) {
+      throw new BadRequestException({
+        errorCode: 'INVALID_PHONE',
+        message: 'Informe um celular válido com DDD, ex: (11) 99888-7766.',
+      });
+    }
     const existing = await this.usersRepository.findByEmail(input.email);
     if (existing) {
       throw new ConflictException({
         errorCode: 'EMAIL_TAKEN',
-        message: 'Este e-mail já está cadastrado.',
+        message: 'Este e-mail já está cadastrado. Entre na sua conta ou recupere a senha.',
       });
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     try {
       const user = await this.usersRepository.create({
-        name: input.name,
+        name: `${input.firstName.trim()} ${input.lastName.trim()}`,
         email: input.email,
         passwordHash,
+        phone,
+        marketingOptIn: input.marketingOptIn === true,
+        address: input.address,
       });
       // Fire-and-forget: uma falha de envio (provedor fora do ar, chave
       // ainda não configurada) não pode impedir o cadastro em si — o
@@ -184,15 +205,30 @@ export class AuthService {
    * Sempre resolve em sucesso (nunca revela se o e-mail existe — mesma
    * defesa contra enumeração de `login`, só que sem o custo de timing
    * ali: aqui não há comparação de senha nenhuma para vazar por tempo).
-   * Sem usuário com esse e-mail, é um no-op silencioso.
+   * Sem usuário com esse e-mail, é um no-op silencioso. O mesmo vale para
+   * SMS pedido por conta sem celular ou que estourou o teto de SMS/hora.
    */
-  async requestPasswordReset(email: string): Promise<void> {
+  async requestPasswordReset(
+    email: string,
+    channel: PasswordResetChannel = 'email',
+  ): Promise<void> {
     const user = await this.usersRepository.findByEmail(email);
     // `!user.passwordHash` = conta só-OAuth (googleId/appleId, sem senha
     // própria pra redefinir) — tratado como "não encontrado" pelo mesmo
     // motivo de não revelar a existência do e-mail: não faz sentido
     // devolver 204 só pra depois o link falhar com uma mensagem diferente.
     if (!user || !user.passwordHash) return;
+
+    if (channel === 'sms') {
+      if (!user.phone) return;
+      const code = await this.resetCodes.issue(user.id);
+      if (!code) return;
+      await this.textMessageSender.send({
+        to: user.phone,
+        body: passwordResetCodeSms(code, RESET_CODE_TTL_MINUTES),
+      });
+      return;
+    }
 
     const token = await this.jwtService.signAsync(
       {
@@ -228,7 +264,32 @@ export class AuthService {
         message: 'Este link de redefinição é inválido ou já expirou.',
       });
     }
+    return this.applyNewPassword(user, newPassword);
+  }
 
+  /**
+   * Variante por SMS de `resetPassword`: e-mail + código de 6 dígitos. Erro
+   * sempre genérico (conta inexistente, sem celular, código errado,
+   * expirado ou esgotado respondem igual) — a tela não vira oráculo.
+   */
+  async resetPasswordWithCode(
+    email: string,
+    code: string,
+    newPassword: string,
+  ): Promise<AuthResponse> {
+    const user = await this.usersRepository.findByEmail(email);
+    const result = user?.passwordHash ? await this.resetCodes.consume(user.id, code) : 'invalid';
+    if (!user || result !== 'ok') {
+      throw new UnauthorizedException({
+        errorCode: 'INVALID_RESET_CODE',
+        message: 'Código inválido ou expirado. Confira o SMS ou peça um novo código.',
+      });
+    }
+    return this.applyNewPassword(user, newPassword);
+  }
+
+  /** Troca a senha (derrubando sessões antigas via `pwv`), avisa por e-mail e abre sessão nova. */
+  private async applyNewPassword(user: User, newPassword: string): Promise<AuthResponse> {
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     const updated = await this.usersRepository.updatePasswordHash(user.id, passwordHash);
     // Aviso de segurança: se não foi o dono da conta, é assim que ele fica
@@ -245,6 +306,11 @@ export class AuthService {
         ),
       );
     return this.issueTokenPair(updated);
+  }
+
+  async updatePreferences(userId: string, marketingOptIn: boolean): Promise<AuthenticatedUser> {
+    const updated = await this.usersRepository.setMarketingOptIn(userId, marketingOptIn);
+    return toAuthenticatedUser(updated);
   }
 
   async requestEmailVerification(userId: string): Promise<void> {
@@ -329,5 +395,7 @@ function toAuthenticatedUser(user: User): AuthenticatedUser {
     role: user.role,
     avatarUrl: user.avatarUrl,
     emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+    phone: user.phone,
+    marketingOptIn: user.marketingOptIn,
   };
 }

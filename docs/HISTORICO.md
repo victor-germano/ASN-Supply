@@ -17,7 +17,51 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
-_Nada no momento._
+### Cadastro completo, senha por SMS, aviso de login e lembrete "sentimos sua falta" (02/10/2026)
+
+Pedido do usuário: cadastro completo (nome, sobrenome, CEP, endereço,
+complemento, e-mail, celular), redefinição de senha por e-mail e/ou SMS,
+aviso claro de e-mail/senha inválidos no login, e mensagem gentil no
+celular de quem viu/escolheu produto e saiu sem comprar.
+
+- **Cadastro** (`RegisterForm`): seções Seus dados / Endereço / Senha /
+  Autorizações. CEP preenche rua, bairro, cidade e UF via ViaCEP (falhou →
+  preenchimento manual, nunca bloqueia). Celular com máscara e a mesma
+  regra da API (`normalizeBrazilianMobile`: DDD + nono dígito, fixo
+  recusado; salvo em E.164). Senha + confirmação. Aceite dos termos
+  obrigatório (`termsAcceptedAt`); opt-in de SMS **desmarcado por padrão**
+  (`marketingOptIn`/`marketingOptInAt`, LGPD). Endereço vira o principal
+  da conta — o checkout já o pré-seleciona.
+- **Senha por SMS** (`PasswordResetCodeService`): código de 6 dígitos,
+  10 min, 5 tentativas, novo código invalida o anterior, teto de 3 SMS/hora
+  por conta; guardado como HMAC com `JWT_SECRET` (1 milhão de códigos não
+  resiste a hash puro). Respostas genéricas (sem revelar conta/celular).
+  Tela de "esqueci a senha" escolhe e-mail (link) ou SMS (código), com
+  reenvio após 60 s.
+- **SMS** (`TextMessageSender`): Twilio via REST (SMS ou WhatsApp pelo
+  prefixo `whatsapp:` no `TWILIO_FROM`); sem credenciais → log. Conta
+  própria da ASN — nada da infraestrutura de WhatsApp da Tech N.
+- **Login**: aviso destacado ("Não foi possível entrar — E-mail ou senha
+  incorretos. Esqueceu a senha?"), e-mail mantido, senha limpa e focada.
+  429 da API não aparece mais cru ("ThrottlerException…") em nenhuma tela
+  de autenticação.
+- **Lembrete** (`RecoveryReminderService`, cron a cada 15 min): só cliente
+  logado (`CustomerActivity`: produto visto/adicionado), com opt-in e
+  celular; espera 60 min sem atividade; nunca depois de compra; no máximo 1
+  a cada 7 dias (`RecoveryMessage`); só 9h–20h de Brasília. Prioriza o que
+  ficou no carrinho. Texto: "Oi, {nome}! Aqui é a ASN Supply. Sentimos sua
+  falta — o {produto} continua no seu carrinho…" com link de volta e de
+  descadastro (`/conta/preferencias`, com chave liga/desliga). Regras
+  puras em `recovery-policy.ts` (15 testes).
+- **Política de Privacidade**: SMS, rastreio de cliente logado e opt-out
+  descritos; removida a menção a Stripe/Mercado Pago (não usados).
+
+Verificado no navegador: cadastro com CEP real, endereço salvo como
+principal, preferência ligada/desligada, código SMS errado recusado e
+certo redefinindo a senha, login com senha antiga recusado com o aviso,
+e lembrete gerado (rodada simulada às 10h) e bloqueado na 2ª rodada.
+Testes: API 115 unitários; e2e 24/24 (cadastro completo, validações,
+aviso de login, checkout com endereço pré-selecionado).
 
 ---
 

@@ -24,25 +24,86 @@ enum Role {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  name            String
-  email           String    @unique
-  passwordHash    String?
-  role            Role      @default(CUSTOMER)
-  avatarUrl       String?
-  googleId        String?   @unique
-  appleId         String?   @unique
-  emailVerifiedAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String?
+  role             Role      @default(CUSTOMER)
+  avatarUrl        String?
+  googleId         String?   @unique
+  appleId          String?   @unique
+  emailVerifiedAt  DateTime?
+  /// Celular em E.164 (`+5511999998888`) — normalizado em `normalizeBrazilianMobile`.
+  phone            String?
+  /// Consentimento (LGPD) para lembretes/ofertas por SMS — opt-in explícito,
+  /// nunca marcado por padrão. A data prova quando foi dado.
+  marketingOptIn   Boolean   @default(false)
+  marketingOptInAt DateTime?
+  termsAcceptedAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  addresses     Address[]
-  orders        Order[]
-  reviews       Review[]
-  wishlistItems WishlistItem[]
-  cart          Cart?
+  addresses          Address[]
+  orders             Order[]
+  reviews            Review[]
+  wishlistItems      WishlistItem[]
+  cart               Cart?
+  passwordResetCodes PasswordResetCode[]
+  activities         CustomerActivity[]
+  recoveryMessages   RecoveryMessage[]
 
   @@map("users")
+}
+
+/// Código de 6 dígitos de "esqueci a senha" por SMS. Só o hash é guardado;
+/// expira em minutos e trava depois de poucas tentativas erradas.
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@map("password_reset_codes")
+}
+
+enum CustomerActivityType {
+  PRODUCT_VIEW
+  CART_ADD
+}
+
+/// O que um cliente LOGADO viu/escolheu — base do lembrete "sentimos sua
+/// falta" (ver `RecoveryReminderService`). Visitante anônimo nunca é rastreado.
+model CustomerActivity {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      CustomerActivityType
+  createdAt DateTime             @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("customer_activities")
+}
+
+/// Lembretes enviados — garante no máximo um por cliente por janela (ver
+/// `RECOVERY_COOLDOWN_DAYS`) e serve de registro do que foi dito a quem.
+model RecoveryMessage {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productName String
+  body        String
+  sentAt      DateTime @default(now())
+
+  @@index([userId, sentAt])
+  @@map("recovery_messages")
 }
 
 model Address {
@@ -160,6 +221,7 @@ model Product {
   orderItems    OrderItem[]
   cartItems     CartItem[]
   lookItems     LookItem[]
+  activities    CustomerActivity[]
 
   @@index([brandId])
   @@index([categoryId])

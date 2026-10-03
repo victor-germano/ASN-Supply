@@ -23,6 +23,8 @@ const ADMIN: AuthenticatedUser = {
   role: 'ADMIN',
   avatarUrl: null,
   emailVerifiedAt: null,
+  phone: null,
+  marketingOptIn: false,
 };
 const CUSTOMER: AuthenticatedUser = { ...ADMIN, id: 'u2', role: 'CUSTOMER' };
 

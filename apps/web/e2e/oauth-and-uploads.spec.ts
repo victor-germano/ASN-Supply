@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { loginAsAdmin } from './helpers';
 
@@ -25,13 +24,30 @@ test.describe('Login com Google e upload de imagem — estado sem credenciais', 
     await page.goto('/admin/catalogo');
     await page.getByRole('button', { name: 'Adicionar marca' }).click();
 
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles(path.join(__dirname, '../public/seed-art/art-01.svg'));
+    await page.locator('input[type="file"]').setInputFiles({
+      // PNG 1x1 — SVG é recusado de propósito pelo upload local (pode conter script).
+      name: 'logo.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    });
 
-    await expect(
-      page.getByText('Upload de imagem ainda não está configurado — cole uma URL diretamente.'),
-    ).toBeVisible();
+    // Sem Cloudinary o resultado depende do ambiente (ver `createImageUploader`
+    // na API): em produção (CI) recusa com mensagem clara; em
+    // desenvolvimento grava no disco local e preenche a URL. Os dois são
+    // aceitáveis — o que não pode é falhar em silêncio.
+    const notConfigured = page.getByText(
+      'Upload de imagem ainda não está configurado — cole uma URL diretamente.',
+    );
+    await expect
+      .poll(
+        async () =>
+          (await notConfigured.isVisible()) ||
+          (await page.getByLabel('Logo').inputValue()).includes('/uploads/'),
+      )
+      .toBe(true);
 
     // O campo de URL continua funcionando normalmente — o upload nunca é o
     // único jeito de preencher a imagem (ver comentário em `ImageUploadField`).

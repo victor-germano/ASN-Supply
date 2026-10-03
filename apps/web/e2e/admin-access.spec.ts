@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsAdmin } from './helpers';
+import { loginAsAdmin, signUp } from './helpers';
 
 test.describe('Acesso administrativo', () => {
   test('/admin/entrar é acessível diretamente (rota oculta, não quebrada)', async ({ page }) => {
@@ -15,13 +15,7 @@ test.describe('Acesso administrativo', () => {
   });
 
   test('cliente comum autenticado é barrado de /admin em silêncio', async ({ page }) => {
-    const email = `e2e.customer.${Date.now()}@asn-e2e.dev`;
-    await page.goto('/criar-conta');
-    await page.getByLabel('Nome').fill('Cliente E2E');
-    await page.getByLabel('E-mail').fill(email);
-    await page.getByLabel('Senha').fill('SenhaForte123!');
-    await page.getByRole('button', { name: 'Criar conta' }).click();
-    await expect(page).toHaveURL(/\/conta\/pedidos/);
+    await signUp(page);
 
     await page.goto('/admin');
     // Não vai pro /admin/entrar (não "convida" a tentar) — volta pra home.

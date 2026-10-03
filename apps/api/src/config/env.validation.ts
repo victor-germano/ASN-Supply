@@ -59,6 +59,18 @@ const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
+    // SMS/WhatsApp (código de senha por SMS e lembrete "sentimos sua falta")
+    // — ver `MessagingModule`. Sem as três, as mensagens só vão pro log.
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    TWILIO_FROM: z.string().optional(),
+    // Lembrete pra quem viu/escolheu produto e saiu sem comprar — só para
+    // quem autorizou no cadastro (ver `RecoveryReminderService`).
+    RECOVERY_REMINDERS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    RECOVERY_REMINDER_DELAY_MINUTES: z.coerce.number().int().min(5).default(60),
     // URL pública do site — usada pra montar links dentro dos e-mails
     // (redefinir senha, confirmar e-mail, ver pedido). Independente de
     // CORS_ALLOWED_ORIGINS (que pode ter mais de uma origem); esta é sempre

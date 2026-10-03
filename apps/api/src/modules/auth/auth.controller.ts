@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
@@ -20,7 +21,9 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordWithCodeDto } from './dto/reset-password-with-code.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -39,7 +42,7 @@ export class AuthController {
   // mesmo espírito de `POST /orders`.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   register(@Body() dto: RegisterDto): Promise<AuthResponse> {
-    return this.service.register(dto);
+    return this.service.register({ ...dto, marketingOptIn: dto.marketingOptIn === true });
   }
 
   @Post('login')
@@ -76,6 +79,17 @@ export class AuthController {
     return user;
   }
 
+  /** Liga/desliga lembretes por SMS — o link "não quero mais" das mensagens leva pra cá. */
+  @Patch('me/preferences')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  updatePreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdatePreferencesDto,
+  ): Promise<AuthenticatedUser> {
+    return this.service.updatePreferences(user.id, dto.marketingOptIn);
+  }
+
   /**
    * Sempre 204, exista o e-mail ou não — mesma defesa contra enumeração
    * de `login` (ver `AuthService.requestPasswordReset`). Nunca informa se
@@ -86,7 +100,7 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
-    await this.service.requestPasswordReset(dto.email);
+    await this.service.requestPasswordReset(dto.email, dto.channel ?? 'email');
   }
 
   @Post('reset-password')
@@ -94,6 +108,18 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   resetPassword(@Body() dto: ResetPasswordDto): Promise<AuthResponse> {
     return this.service.resetPassword(dto.token, dto.newPassword);
+  }
+
+  /**
+   * Variante por SMS. Limite baixo por visitante, somado ao teto de 5
+   * tentativas por código (ver `PasswordResetCodeService`) — as duas
+   * camadas juntas tornam inviável chutar o código de 6 dígitos.
+   */
+  @Post('reset-password/code')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  resetPasswordWithCode(@Body() dto: ResetPasswordWithCodeDto): Promise<AuthResponse> {
+    return this.service.resetPasswordWithCode(dto.email, dto.code, dto.newPassword);
   }
 
   @Post('verify-email')

@@ -52,6 +52,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       avatarUrl: user.avatarUrl,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      phone: user.phone,
+      marketingOptIn: user.marketingOptIn,
     };
   }
 }

@@ -6,6 +6,18 @@ export interface CreateUserData {
   name: string;
   email: string;
   passwordHash: string;
+  /** E.164, já normalizado. */
+  phone: string;
+  marketingOptIn: boolean;
+  address: {
+    zipCode: string;
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+  };
 }
 
 /** Conta criada via Google — sem senha própria; `emailVerifiedAt` já vem preenchido (Google já verificou o e-mail, não faz sentido pedir de novo). */
@@ -37,13 +49,41 @@ export class UsersRepository {
     return this.prisma.user.findUnique({ where: { googleId } });
   }
 
+  /** Conta + endereço principal numa única escrita (nested create = uma transação). */
   create(data: CreateUserData): Promise<User> {
+    const now = new Date();
+    const name = data.name.trim();
     return this.prisma.user.create({
       data: {
-        name: data.name.trim(),
+        name,
         email: data.email.trim().toLowerCase(),
         passwordHash: data.passwordHash,
+        phone: data.phone,
+        termsAcceptedAt: now,
+        marketingOptIn: data.marketingOptIn,
+        marketingOptInAt: data.marketingOptIn ? now : null,
+        addresses: {
+          create: {
+            label: 'Principal',
+            recipientName: name,
+            street: data.address.street.trim(),
+            number: data.address.number.trim(),
+            complement: data.address.complement?.trim() || null,
+            neighborhood: data.address.neighborhood.trim(),
+            city: data.address.city.trim(),
+            state: data.address.state.trim().toUpperCase(),
+            zipCode: formatZipCode(data.address.zipCode),
+            isDefault: true,
+          },
+        },
       },
+    });
+  }
+
+  setMarketingOptIn(userId: string, optIn: boolean): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { marketingOptIn: optIn, marketingOptInAt: optIn ? new Date() : null },
     });
   }
 
@@ -82,4 +122,10 @@ export class UsersRepository {
   markEmailVerified(id: string): Promise<User> {
     return this.prisma.user.update({ where: { id }, data: { emailVerifiedAt: new Date() } });
   }
+}
+
+/** `01310100` → `01310-100` — mesmo formato que o resto do sistema guarda. */
+function formatZipCode(zipCode: string): string {
+  const digits = zipCode.replace(/\D/g, '');
+  return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
 }

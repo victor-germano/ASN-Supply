@@ -29,6 +29,9 @@ export default async function ContaLayout({ children }: { children: React.ReactN
           <Link href="/conta/enderecos" className="text-sm text-ink hover:text-olive-600">
             Meus endereços
           </Link>
+          <Link href="/conta/preferencias" className="text-sm text-ink hover:text-olive-600">
+            Preferências
+          </Link>
           <LogoutButton className="text-left text-sm text-ink-muted hover:text-error" />
         </nav>
         <div>

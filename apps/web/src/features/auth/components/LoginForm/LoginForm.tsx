@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Button, Text } from '@asn/ui';
 import { inputClassName, labelClassName } from '@/components/form/formStyles';
 import { FieldErrorText } from '@/components/form/FieldErrorText';
+import { FormAlert } from '@/components/form/FormAlert';
 import { loginAction } from '@/actions/auth';
 import { useInvalidateCurrentUser } from '@/hooks/useCurrentUser';
 import { SocialLoginButtons } from '../SocialLoginButtons/SocialLoginButtons';
@@ -50,6 +51,8 @@ export function LoginForm({
   const {
     register,
     handleSubmit,
+    resetField,
+    setFocus,
     formState: { errors },
   } = useForm<LoginFormValues>({ mode: 'onBlur' });
   const rawNext = searchParams.get('next');
@@ -62,6 +65,10 @@ export function LoginForm({
       const result = await loginAction(values);
       if (!result.success) {
         setSubmitError(result.message);
+        // E-mail fica (o erro mais comum é só a senha); senha some e ganha
+        // foco pra pessoa redigitar direto.
+        resetField('password');
+        setFocus('password');
         return;
       }
       const next = searchParams.get('next');
@@ -75,6 +82,15 @@ export function LoginForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+      {submitError && (
+        <FormAlert tone="error" title="Não foi possível entrar">
+          {submitError}{' '}
+          <Link href="/esqueci-senha" className="underline underline-offset-4">
+            Esqueceu a senha?
+          </Link>
+        </FormAlert>
+      )}
+
       <div>
         <label className={labelClassName} htmlFor="email">
           E-mail
@@ -112,12 +128,6 @@ export function LoginForm({
         />
         <FieldErrorText error={errors.password} />
       </div>
-
-      {submitError && (
-        <Text size="sm" className="text-error" role="alert">
-          {submitError}
-        </Text>
-      )}
 
       <Button type="submit" size="lg" fullWidth isLoading={isSubmitting}>
         Entrar

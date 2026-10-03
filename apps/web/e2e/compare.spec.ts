@@ -14,7 +14,7 @@ test.describe('Comparador de produtos', () => {
 
     await expect(page).toHaveURL('/comparar');
     await expect(page.getByRole('heading', { name: 'Comparar produtos' })).toBeVisible();
-    await expect(page.getByText('Marca')).toBeVisible();
+    await expect(page.getByText('Marca', { exact: true })).toBeVisible();
     await expect(page.getByText('Preço')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Remover' }).first()).toBeVisible();
   });

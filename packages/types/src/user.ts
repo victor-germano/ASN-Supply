@@ -8,12 +8,33 @@ export interface AuthenticatedUser {
   avatarUrl: string | null;
   /** `null` = ainda não confirmou o e-mail (ver `EmailVerificationBanner` em `/conta`). */
   emailVerifiedAt: string | null;
+  /** Celular em E.164 — `null` em conta criada pelo Google, que não informa. */
+  phone: string | null;
+  /** Autorizou lembretes/ofertas por SMS (opt-in, LGPD). */
+  marketingOptIn: boolean;
 }
 
+export interface SignupAddressInput {
+  zipCode: string;
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}
+
+export type PasswordResetChannel = 'email' | 'sms';
+
 export interface RegisterInput {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
+  phone: string;
   password: string;
+  address: SignupAddressInput;
+  acceptTerms: boolean;
+  marketingOptIn: boolean;
 }
 
 export interface LoginInput {

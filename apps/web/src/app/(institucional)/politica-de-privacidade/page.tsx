@@ -46,6 +46,15 @@ export default function PrivacyPolicyPage() {
           comunicações transacionais (confirmação de pedido, status de entrega) e, mediante seu
           consentimento explícito, comunicações de marketing como a newsletter.
         </Text>
+        <Text tone="muted">
+          Seu celular é usado para enviar códigos de segurança por SMS, como o de redefinição de
+          senha, sempre que você solicitar. Se você autorizar no cadastro (a opção vem desmarcada),
+          também enviamos lembretes por SMS sobre produtos que viu ou deixou no carrinho enquanto
+          estava conectado à sua conta: no máximo um por semana, apenas em horário comercial e nunca
+          depois de uma compra. Para isso, registramos quais produtos você visualizou e adicionou ao
+          carrinho enquanto conectado — visitantes não identificados não são acompanhados. Você pode
+          desativar os lembretes a qualquer momento em Minha conta › Preferências.
+        </Text>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -53,10 +62,11 @@ export default function PrivacyPolicyPage() {
           3. Compartilhamento com terceiros
         </Heading>
         <Text tone="muted">
-          Compartilhamos dados estritamente necessários com processadores de pagamento (Stripe,
-          Mercado Pago), transportadoras, e provedores de infraestrutura (hospedagem, e-mail
-          transacional) — todos sob obrigações contratuais de confidencialidade. Não vendemos dados
-          pessoais a terceiros.
+          Compartilhamos dados estritamente necessários com transportadoras e provedores de
+          infraestrutura (hospedagem, e-mail transacional e envio de SMS) — todos sob obrigações
+          contratuais de confidencialidade. O pagamento via PIX é feito diretamente no aplicativo do
+          seu banco; não recebemos nem guardamos dados bancários. Não vendemos dados pessoais a
+          terceiros.
         </Text>
       </section>
 
