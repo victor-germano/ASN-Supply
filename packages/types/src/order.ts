@@ -133,6 +133,13 @@ export interface PixPaymentDetails {
   copyPasteCode: string;
   receiverName: string;
   amountInCents: number;
+  /**
+   * Como o titular real da chave aparece no app do banco (ex: "Maria S.")
+   * quando a chave é pessoal e `receiverName` é o nome da loja — o site
+   * avisa antes, pra o cliente não estranhar na confirmação. `null` = não
+   * há diferença a explicar.
+   */
+  holderDisplayName: string | null;
 }
 
 /**

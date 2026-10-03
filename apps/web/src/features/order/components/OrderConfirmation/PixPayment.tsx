@@ -33,6 +33,15 @@ export async function PixPayment({ pix }: { pix: PixPaymentDetails }) {
           Para: {pix.receiverName}
         </Text>
       </div>
+      {pix.holderDisplayName && (
+        // Chave pessoal: o app do banco mostra o titular real na
+        // confirmação — avisar antes evita a sensação de golpe.
+        <p className="border border-ink/10 bg-bone-200 px-4 py-3 text-center text-xs text-ink-muted">
+          O pagamento aparecerá no seu banco em nome de{' '}
+          <strong className="text-ink">{pix.holderDisplayName}</strong>, titular da conta da ASN
+          Supply.
+        </p>
+      )}
       <CopyPixCodeButton code={pix.copyPasteCode} />
     </div>
   );

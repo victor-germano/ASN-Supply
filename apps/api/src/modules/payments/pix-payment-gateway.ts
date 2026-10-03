@@ -21,12 +21,14 @@ export class PixPaymentGateway extends PaymentGateway {
   private readonly key: string;
   private readonly receiverName: string;
   private readonly receiverCity: string;
+  private readonly holderDisplayName: string | null;
 
   constructor(config: ConfigService<EnvConfig, true>) {
     super();
     this.key = config.get('PIX_KEY', { infer: true })!;
     this.receiverName = config.get('PIX_RECEIVER_NAME', { infer: true })!;
     this.receiverCity = config.get('PIX_RECEIVER_CITY', { infer: true })!;
+    this.holderDisplayName = config.get('PIX_HOLDER_DISPLAY_NAME', { infer: true })?.trim() || null;
   }
 
   async createPaymentIntent(order: PaymentIntentOrderInput): Promise<PaymentIntentResult> {
@@ -47,6 +49,7 @@ export class PixPaymentGateway extends PaymentGateway {
         copyPasteCode,
         receiverName: this.receiverName,
         amountInCents: order.totalInCents,
+        holderDisplayName: this.holderDisplayName,
       },
       message:
         'Pague com PIX pelo app do seu banco, lendo o QR Code ou usando o código copia e cola. Assim que o pagamento for identificado, seu pedido muda para "Pago" e você recebe um aviso.',

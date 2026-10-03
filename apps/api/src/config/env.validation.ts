@@ -37,6 +37,9 @@ const envSchema = z
     PIX_KEY: z.string().optional(),
     PIX_RECEIVER_NAME: z.string().optional(),
     PIX_RECEIVER_CITY: z.string().optional(),
+    // Chave pessoal com nome da loja no PIX: como o titular aparece no banco
+    // de quem paga (ex: "Maria S."). Preenchida = aviso na tela de pagamento.
+    PIX_HOLDER_DISPLAY_NAME: z.string().optional(),
     // Upload de imagem no painel admin — ver `ImageUploader`/`uploads.module.ts`.
     // Sem ela, `POST /admin/uploads` responde 503 (`UnavailableImageUploader`)
     // e o formulário cai no campo de URL colada, que sempre funcionou.
