@@ -43,7 +43,7 @@ const E2E_COUPON_CODE = 'E2E10';
  * de e2e de propósito (os testes trocam a senha daquele no fluxo de
  * "esqueci a senha"). `@example.com`: domínio reservado pra exemplos (nunca
  * é de ninguém) e limpo/recriado a cada `db:seed`, como o resto dos dados
- * fictícios. O seed nunca roda em produção.
+ * fictícios. Nunca criado em produção (ver `assertSafeToSeed`).
  */
 const DEMO_ADMIN_EMAIL = 'admin@example.com';
 const DEMO_ADMIN_PASSWORD = 'AsnAdmin2026!';
@@ -984,9 +984,40 @@ async function seedReviewsAndQuestions(
   }
 }
 
+/**
+ * `pnpm db:seed:production` (flag `--production`): carga inicial de uma
+ * loja de verdade. Só o catálogo de demonstração, para a dona da loja ter
+ * o que editar/excluir no painel — sem contas de teste (senhas públicas
+ * neste arquivo), sem cupom de teste e sem avaliações/perguntas fictícias
+ * (apresentá-las como de clientes reais seria propaganda enganosa). E
+ * nunca apaga nada: se o banco já tem produto ou pedido, aborta.
+ */
+const IS_PRODUCTION_SEED = process.argv.includes('--production');
+
+async function assertSafeToSeed(): Promise<void> {
+  if (!IS_PRODUCTION_SEED) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'O seed de desenvolvimento APAGA pedidos e catálogo e cria contas admin de teste — recusado em produção. Para a carga inicial da loja, use `pnpm db:seed:production`.',
+      );
+    }
+    return;
+  }
+  const [products, orders] = await Promise.all([prisma.product.count(), prisma.order.count()]);
+  if (products > 0 || orders > 0) {
+    throw new Error(
+      `Este banco já tem dados (${products} produtos, ${orders} pedidos) — a carga inicial só roda num banco vazio e nunca apaga nada.`,
+    );
+  }
+}
+
 async function main() {
-  console.warn('Limpando dados de catálogo existentes...');
-  await resetCatalogData();
+  await assertSafeToSeed();
+
+  if (!IS_PRODUCTION_SEED) {
+    console.warn('Limpando dados de catálogo existentes...');
+    await resetCatalogData();
+  }
 
   console.warn('Semeando marcas, categorias e coleções...');
   const [brands, categories, collections] = await Promise.all([
@@ -1000,6 +1031,13 @@ async function main() {
 
   console.warn('Semeando produtos, variantes e imagens...');
   const products = await seedProducts(brands, categories, collections);
+
+  if (IS_PRODUCTION_SEED) {
+    console.warn(
+      'Carga inicial concluída: catálogo de demonstração, sem contas nem avaliações de teste. Crie a conta da administradora com `pnpm exec tsx scripts/create-admin.ts email "Nome"`.',
+    );
+    return;
+  }
 
   console.warn('Semeando avaliadores, avaliações e perguntas...');
   const reviewers = await seedReviewers();

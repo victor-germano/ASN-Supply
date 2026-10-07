@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '../../config/env.validation';
 import { createTryOnAnalyzer } from './tryon.module';
-import { MockTryOnAnalyzer } from './mock-tryon-analyzer';
+import { StyleGuideTryOnAnalyzer } from './style-guide-tryon-analyzer';
 import { ClaudeTryOnAnalyzer } from './claude-tryon-analyzer';
 
 function fakeConfig(anthropicApiKey: string | undefined): ConfigService<EnvConfig, true> {
@@ -10,9 +10,10 @@ function fakeConfig(anthropicApiKey: string | undefined): ConfigService<EnvConfi
 }
 
 describe('createTryOnAnalyzer', () => {
-  it('escolhe MockTryOnAnalyzer quando ASN_ANTHROPIC_API_KEY não está configurada', () => {
+  it('escolhe StyleGuideTryOnAnalyzer (sem foto) quando ASN_ANTHROPIC_API_KEY não está configurada', () => {
     const analyzer = createTryOnAnalyzer(fakeConfig(undefined));
-    expect(analyzer).toBeInstanceOf(MockTryOnAnalyzer);
+    expect(analyzer).toBeInstanceOf(StyleGuideTryOnAnalyzer);
+    expect(analyzer.usesPhoto).toBe(false);
   });
 
   it('escolhe ClaudeTryOnAnalyzer quando ASN_ANTHROPIC_API_KEY está configurada', () => {

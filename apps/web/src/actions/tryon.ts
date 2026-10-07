@@ -23,7 +23,7 @@ export async function analyzeTryOnAction(
     const message =
       error instanceof ApiError
         ? error.message
-        : 'Não foi possível analisar sua foto agora. Tente novamente em instantes.';
+        : 'Não foi possível gerar seu parecer agora. Tente novamente em instantes.';
     return { success: false, message };
   }
 }

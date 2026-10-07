@@ -17,6 +17,43 @@ bugs reais encontrados/corrigidos (quando houve).
 
 ## Em andamento (ainda não commitado)
 
+### Preparação para publicar (06/10/2026)
+
+Pedido do usuário: deixar tudo o que não depende de senha/conta externa
+pronto para o site subir completo; domínio será do Registro.br; catálogo de
+demonstração fica para a cliente editar; Provador sem chave de IA, mas
+funcionando de forma prática.
+
+- **Fotos pelo painel sem Cloudinary**: `DatabaseImageUploader` guarda a
+  imagem no Postgres (`stored_images`) e a API serve em `/uploads/<id>.<ext>`
+  (cache imutável, tipo detectado pelos bytes, SVG recusado). Substitui o
+  disco local (só dev) e o "upload indisponível" (produção) — um caminho
+  só, coberto pelo e2e. Decisão: disco de hospedagem é apagado a cada
+  deploy; o banco não, e o volume de uma loja pequena é irrisório. Com
+  `CLOUDINARY_URL`, as novas vão para lá. Nova `API_PUBLIC_URL` (exigida em
+  produção sem Cloudinary); `remotePatterns` do site derivado da URL da API.
+- **Provador sem IA**: o adapter sem chave sorteava o tamanho e o texto e
+  pedia uma foto que ninguém analisava. Virou `StyleGuideTryOnAnalyzer`:
+  guia de estilo por categoria (sempre o mesmo para o mesmo produto), sem
+  foto. Novo campo "comprimento do pé (cm)": o tamanho sai da tabela de
+  medidas (`size-chart.ts`, mesma da página do produto), avisa quando o
+  número está sem estoque e não inventa número fora da tabela. Com a
+  chave, a tela volta a pedir a foto (`GET /tryon/config`) e a medida
+  informada prevalece sobre o palpite da IA.
+- **Seed seguro**: `pnpm db:seed:production` = só o catálogo de
+  demonstração, sem contas de teste, cupom de teste ou avaliações
+  fictícias, e aborta em banco que já tem produto/pedido. O seed comum
+  (apaga pedidos, cria admins com senha pública) recusa
+  `NODE_ENV=production`. Testado num banco vazio: 24 produtos, 0 usuários,
+  0 avaliações.
+- `REDIS_URL` opcional (nada conecta no Redis) — hospedagem não precisa de um.
+- **Deploy**: `apps/api/Dockerfile`, `apps/web/Dockerfile`, `.dockerignore`
+  e `docs/DEPLOY.md` (ordem de publicação, variáveis, DNS no Registro.br,
+  conferência pós-publicação). CI ajustado às novas travas de produção.
+- Ambiente: build de imagem Docker nesta máquina (7,8 GB de RAM) deixa
+  ~0,2 GB livre e derruba os e2e mais longos por tempo/abort (código 134);
+  não rodar os dois juntos.
+
 ### Cookies (LGPD) e reforço de segurança (03/10/2026)
 
 Pedido do usuário: "sistema de cookies completo" para dar credibilidade, e

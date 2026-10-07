@@ -44,7 +44,7 @@ export function TryOnResult({ result, productSlug }: TryOnResultProps) {
               weight="semibold"
               className="mb-1 uppercase tracking-wider text-ink-muted"
             >
-              Caimento estimado
+              Tamanho indicado
             </Text>
             <Text>
               {result.fitRecommendation.recommendedSize && (

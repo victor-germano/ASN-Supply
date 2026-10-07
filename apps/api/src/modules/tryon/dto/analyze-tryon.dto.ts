@@ -1,4 +1,13 @@
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class AnalyzeTryOnDto {
   // Data URL — nunca aceita base64 "cru" sem prefixo, para garantir que o
@@ -18,9 +27,19 @@ export class AnalyzeTryOnDto {
   // atualizar este validador junto, ele continua sendo o último a barrar
   // um payload absurdo, ainda que com uma mensagem genérica nesse caso.
   @MaxLength(6_000_000, { message: 'Foto muito grande — envie uma imagem menor.' })
-  photoBase64!: string;
+  // Opcional: sem análise por IA o Provador nem pede foto (ver
+  // `TryOnService`, que a exige quando o adapter a usa).
+  @IsOptional()
+  photoBase64?: string;
 
   @IsString()
   @MinLength(1)
   productId!: string;
+
+  /** Comprimento do pé em centímetros — com ele, o tamanho sai da tabela de medidas. */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 1 }, { message: 'Informe a medida do pé em centímetros.' })
+  @Min(15, { message: 'Confira a medida do pé: o valor deve estar em centímetros.' })
+  @Max(40, { message: 'Confira a medida do pé: o valor deve estar em centímetros.' })
+  footLengthCm?: number;
 }

@@ -32,7 +32,9 @@ describe('validateEnv', () => {
   it('produção exige INTERNAL_API_KEY e recusa o JWT_SECRET de exemplo', () => {
     const production = { ...validConfig, NODE_ENV: 'production' };
     expect(() => validateEnv(production)).toThrow(/INTERNAL_API_KEY/);
-    const withKey = { ...production, INTERNAL_API_KEY: 'k'.repeat(32) };
+    const withoutPublicUrl = { ...production, INTERNAL_API_KEY: 'k'.repeat(32) };
+    expect(() => validateEnv(withoutPublicUrl)).toThrow(/API_PUBLIC_URL/);
+    const withKey = { ...withoutPublicUrl, API_PUBLIC_URL: 'https://api.loja.com.br' };
     expect(validateEnv(withKey).NODE_ENV).toBe('production');
     expect(() =>
       validateEnv({

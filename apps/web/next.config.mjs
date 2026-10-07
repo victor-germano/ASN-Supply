@@ -4,7 +4,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 // HTTPS de verdade (domínio publicado) — não um build de produção rodando
 // em http://localhost para testes.
 const servedOverHttps = (process.env.NEXT_PUBLIC_SITE_URL ?? '').startsWith('https://');
-const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1').origin;
+const apiUrl = new URL(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3400/v1');
+const apiOrigin = apiUrl.origin;
 
 /**
  * Content-Security-Policy: lista do que o navegador pode carregar. Um
@@ -42,9 +43,14 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: '*.amazonaws.com' },
-      // Imagens enviadas pelo painel em desenvolvimento, sem Cloudinary
-      // (`LocalDiskImageUploader` na API).
-      { protocol: 'http', hostname: 'localhost', port: '3400', pathname: '/uploads/**' },
+      // Imagens enviadas pelo painel sem Cloudinary: ficam no banco e são
+      // servidas pela própria API (`DatabaseImageUploader`).
+      {
+        protocol: apiUrl.protocol.replace(':', ''),
+        hostname: apiUrl.hostname,
+        port: apiUrl.port,
+        pathname: '/uploads/**',
+      },
     ],
     // Habilitado só para os SVGs estáticos de arte abstrata em
     // public/seed-art (gerados por nós, confiáveis) — usados como capa de

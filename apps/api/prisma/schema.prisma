@@ -568,3 +568,18 @@ model Payment {
 
   @@map("payments")
 }
+
+/// Imagens enviadas pelo painel quando não há Cloudinary configurada (ver
+/// `DatabaseImageUploader`). Ficam no banco porque o disco de uma
+/// hospedagem é apagado a cada deploy. Sem relação com Product/Brand: a URL
+/// é só um texto no catálogo, como qualquer outra.
+model StoredImage {
+  id          String   @id @default(uuid())
+  contentType String
+  data        Bytes
+  width       Int
+  height      Int
+  createdAt   DateTime @default(now())
+
+  @@map("stored_images")
+}

@@ -18,13 +18,10 @@ const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 
 /**
  * Usado pelo formulário de produto/marca/categoria/coleção do painel
- * admin como alternativa a colar uma URL — nunca a única forma: sem
- * `CLOUDINARY_URL` configurada, `ImageUploader` (via
- * `UnavailableImageUploader`) rejeita com uma mensagem clara, e o campo
- * de URL continua funcionando normalmente. `memoryStorage()` (não o
- * padrão em disco do multer) porque `ImageUploader.upload` espera um
- * `Buffer` — o arquivo nunca toca o disco da API, só passa em memória a
- * caminho da Cloudinary.
+ * admin como alternativa a colar uma URL. `memoryStorage()` (não o padrão
+ * em disco do multer) porque `ImageUploader.upload` espera um `Buffer` — o
+ * arquivo nunca toca o disco da API, só passa em memória a caminho da
+ * Cloudinary ou do banco (ver `uploads.module.ts`).
  */
 @Controller({ path: 'admin/uploads', version: '1' })
 @UseGuards(JwtAuthGuard, RolesGuard)

@@ -5,7 +5,7 @@ import { EmailSender, type SendEmailParams } from './email-sender';
  * Fallback sem `RESEND_API_KEY` configurada — nunca falha, só loga (em
  * dev, o link de redefinição de senha/verificação aparece no console da
  * API, plenamente utilizável para testar o fluxo sem depender de conta no
- * Resend). Mesmo espírito do `MockTryOnAnalyzer`/`NullPaymentGateway`:
+ * Resend). Mesmo espírito do `StyleGuideTryOnAnalyzer`/`NullPaymentGateway`:
  * dev/CI continuam funcionando sem a credencial externa.
  */
 @Injectable()

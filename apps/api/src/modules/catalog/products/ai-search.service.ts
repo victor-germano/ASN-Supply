@@ -31,7 +31,7 @@ Regras:
  * Provador Digital (Fase 2). Sem a chave configurada, cai no fallback de
  * busca textual comum (`ProductsRepository.search`) — nunca finge análise
  * de IA que não aconteceu (`isAiPowered: false`, `summary: null`), mesmo
- * princípio do `MockTryOnAnalyzer`. Catálogo inteiro cabe num prompt só
+ * princípio do `StyleGuideTryOnAnalyzer`. Catálogo inteiro cabe num prompt só
  * (dúzias de produtos, não milhares) — está longe da escala que exigiria
  * embeddings/busca vetorial de verdade; se o catálogo crescer muito, isso
  * precisa ser revisitado.

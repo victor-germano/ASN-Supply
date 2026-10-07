@@ -111,6 +111,8 @@ jobs:
       INTERNAL_API_KEY: ci-only-internal-key-at-least-32-characters
       NODE_ENV: production
       PORT: 3400
+      # Exigida em produção: início da URL das imagens enviadas pelo painel.
+      API_PUBLIC_URL: http://localhost:3400
       # Inline-adas no bundle do client NO MOMENTO DO BUILD (Next.js não lê
       # `NEXT_PUBLIC_*` em runtime) — precisam estar corretas ANTES do passo
       # de build abaixo, não só na hora de rodar os testes.
@@ -146,8 +148,12 @@ jobs:
       - name: Run database migrations
         run: pnpm --filter @asn/api exec prisma migrate deploy
 
+      # O seed de teste (contas admin de e2e, apaga tudo antes) se recusa a
+      # rodar com NODE_ENV=production — aqui o banco é descartável.
       - name: Seed database
         run: pnpm --filter @asn/api db:seed
+        env:
+          NODE_ENV: development
 
       - name: Build
         run: pnpm build

@@ -17,7 +17,7 @@ test.describe('Login com Google e upload de imagem — estado sem credenciais', 
     await expect(page.getByRole('link', { name: /continuar com google/i })).toHaveCount(0);
   });
 
-  test('upload de imagem sem CLOUDINARY_URL falha com mensagem clara, campo de URL continua usável', async ({
+  test('upload de imagem sem CLOUDINARY_URL guarda no banco da loja e a imagem fica acessível', async ({
     page,
   }) => {
     await loginAsAdmin(page);
@@ -25,7 +25,7 @@ test.describe('Login com Google e upload de imagem — estado sem credenciais', 
     await page.getByRole('button', { name: 'Adicionar marca' }).click();
 
     await page.locator('input[type="file"]').setInputFiles({
-      // PNG 1x1 — SVG é recusado de propósito pelo upload local (pode conter script).
+      // PNG 1x1 — SVG é recusado de propósito pelo upload (pode conter script).
       name: 'logo.png',
       mimeType: 'image/png',
       buffer: Buffer.from(
@@ -34,20 +34,12 @@ test.describe('Login com Google e upload de imagem — estado sem credenciais', 
       ),
     });
 
-    // Sem Cloudinary o resultado depende do ambiente (ver `createImageUploader`
-    // na API): em produção (CI) recusa com mensagem clara; em
-    // desenvolvimento grava no disco local e preenche a URL. Os dois são
-    // aceitáveis — o que não pode é falhar em silêncio.
-    const notConfigured = page.getByText(
-      'Upload de imagem ainda não está configurado — cole uma URL diretamente.',
-    );
-    await expect
-      .poll(
-        async () =>
-          (await notConfigured.isVisible()) ||
-          (await page.getByLabel('Logo').inputValue()).includes('/uploads/'),
-      )
-      .toBe(true);
+    // Sem Cloudinary a imagem vai para o banco e a API devolve a URL
+    // (`DatabaseImageUploader`) — o mesmo caminho em dev, CI e produção.
+    await expect(page.getByLabel('Logo')).toHaveValue(/\/uploads\/[0-9a-f-]{36}\.png$/);
+    const served = await page.request.get(await page.getByLabel('Logo').inputValue());
+    expect(served.status()).toBe(200);
+    expect(served.headers()['content-type']).toBe('image/png');
 
     // O campo de URL continua funcionando normalmente — o upload nunca é o
     // único jeito de preencher a imagem (ver comentário em `ImageUploadField`).

@@ -44,7 +44,7 @@ Regras:
 
 /**
  * Adapter real do Provador Digital Fase 2: análise de estilo/caimento via
- * Claude com visão, substituindo o parecer ilustrativo do `MockTryOnAnalyzer`
+ * Claude com visão, no lugar do guia sem foto do `StyleGuideTryOnAnalyzer`
  * quando `ASN_ANTHROPIC_API_KEY` está configurada (ver factory em
  * `tryon.module.ts`). `photoBase64` já chega como data URL JPEG redimensionada
  * no client (ver `resizeImage.ts` no frontend) — bem dentro do limite de
@@ -54,6 +54,7 @@ Regras:
 export class ClaudeTryOnAnalyzer extends TryOnAnalyzer {
   private readonly logger = new Logger(ClaudeTryOnAnalyzer.name);
   private readonly client: Anthropic;
+  readonly usesPhoto = true;
 
   constructor(config: ConfigService<EnvConfig, true>) {
     super();
@@ -61,9 +62,9 @@ export class ClaudeTryOnAnalyzer extends TryOnAnalyzer {
   }
 
   async analyze(context: TryOnAnalysisContext): Promise<TryOnAnalysisResult> {
-    const match = DATA_URL_PATTERN.exec(context.photoBase64);
+    const match = DATA_URL_PATTERN.exec(context.photoBase64 ?? '');
     if (!match) {
-      // AnalyzeTryOnDto já valida esse formato antes de chegar aqui — chegar
+      // AnalyzeTryOnDto/TryOnService já validam isso antes de chegar aqui — chegar
       // neste ponto sem bater indica um bug em outra camada, não input do
       // usuário, daí o 500 em vez de um 400.
       throw new InternalServerErrorException({

@@ -16,6 +16,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:production": "tsx prisma/seed.ts --production",
     "promote-admin": "tsx scripts/promote-to-admin.ts"
   },
   "prisma": {

@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { TryOnView } from '@/features/tryon/components/TryOnView/TryOnView';
+import { getTryOnConfig } from '@/services/tryon.service';
 
 export const metadata: Metadata = {
   title: 'Provador Digital',
   description:
-    'Envie uma foto e veja como um tênis combina com seu estilo, com estimativa de caimento por IA.',
+    'Descubra o tamanho certo pela medida do seu pé e veja como combinar cada tênis do catálogo.',
 };
 
-export default function ProvadorPage() {
-  return <TryOnView />;
+export default async function ProvadorPage() {
+  const { usesPhoto } = await getTryOnConfig();
+  return <TryOnView usesPhoto={usesPhoto} />;
 }

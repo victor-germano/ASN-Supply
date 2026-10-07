@@ -11,7 +11,12 @@ function fakeConfig(): ConfigService<EnvConfig, true> {
 
 const CONTEXT: TryOnAnalysisContext = {
   photoBase64: 'data:image/jpeg;base64,ZmFrZS1pbWFnZS1kYXRh',
-  product: { name: 'Marrow Junior', brandName: 'Marrow Atelier', categoryName: 'Basquete' },
+  product: {
+    id: 'p1',
+    name: 'Marrow Junior',
+    brandName: 'Marrow Atelier',
+    categoryName: 'Basquete',
+  },
 };
 
 /** Stub do client Anthropic — só precisa responder à chamada `messages.create`. */

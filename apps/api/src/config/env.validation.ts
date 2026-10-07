@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/** URL opcional — painéis de hospedagem costumam mandar a variável vazia em vez de omiti-la. */
+const optionalUrl = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().url().optional(),
+);
+
 /**
  * Schema de variáveis de ambiente. Falha rápido e alto (na inicialização,
  * não em runtime aleatório) se algo obrigatório estiver ausente ou com
@@ -10,7 +16,9 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3400),
     DATABASE_URL: z.string().url(),
-    REDIS_URL: z.string().url(),
+    // Reservada (cache/filas futuros) — nada na API conecta no Redis hoje,
+    // então a hospedagem não precisa de um.
+    REDIS_URL: optionalUrl,
     JWT_SECRET: z.string().min(32, 'JWT_SECRET deve ter ao menos 32 caracteres'),
     JWT_EXPIRES_IN: z.string().default('15m'),
     JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
@@ -41,9 +49,13 @@ const envSchema = z
     // de quem paga (ex: "Maria S."). Preenchida = aviso na tela de pagamento.
     PIX_HOLDER_DISPLAY_NAME: z.string().optional(),
     // Upload de imagem no painel admin — ver `ImageUploader`/`uploads.module.ts`.
-    // Sem ela, `POST /admin/uploads` responde 503 (`UnavailableImageUploader`)
-    // e o formulário cai no campo de URL colada, que sempre funcionou.
+    // Sem ela, as imagens ficam no banco da loja (`DatabaseImageUploader`) e
+    // são servidas pela própria API em `API_PUBLIC_URL`.
     CLOUDINARY_URL: z.string().optional(),
+    // Endereço público da API (ex: https://api.asnsupply.com.br), sem `/v1`
+    // — vira o início da URL das imagens enviadas pelo painel. Em
+    // desenvolvimento cai em http://localhost:PORT.
+    API_PUBLIC_URL: optionalUrl,
     // Reservadas — alternativa a Cloudinary nunca implementada (só um dos
     // dois adapters foi construído; mesmo espírito de só ter
     // `NullPaymentGateway` até um gateway real ser escolhido).
@@ -112,6 +124,12 @@ const envSchema = z
   .refine((env) => env.NODE_ENV !== 'production' || env.INTERNAL_API_KEY, {
     message: 'INTERNAL_API_KEY é obrigatória em produção (mesmo valor no .env do site)',
     path: ['INTERNAL_API_KEY'],
+  })
+  // Sem isto, as fotos enviadas pelo painel seriam gravadas no catálogo
+  // com endereço `http://localhost` e não apareceriam para ninguém.
+  .refine((env) => env.NODE_ENV !== 'production' || env.CLOUDINARY_URL || env.API_PUBLIC_URL, {
+    message: 'Em produção, defina API_PUBLIC_URL (endereço público da API) ou CLOUDINARY_URL',
+    path: ['API_PUBLIC_URL'],
   })
   // O valor do `.env.example` é público (está no GitHub): com ele, qualquer
   // um assinaria um token de administrador.

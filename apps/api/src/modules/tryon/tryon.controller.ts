@@ -1,6 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { TryOnAnalysisResult } from '@asn/types';
+import type { TryOnAnalysisResult, TryOnConfig } from '@asn/types';
 import { TryOnService } from './tryon.service';
 import { AnalyzeTryOnDto } from './dto/analyze-tryon.dto';
 
@@ -8,13 +8,20 @@ import { AnalyzeTryOnDto } from './dto/analyze-tryon.dto';
 export class TryOnController {
   constructor(private readonly service: TryOnService) {}
 
-  /** Provador Digital (Módulo 7) — parecer de estilo/caimento a partir de uma foto + produto. */
+  /** Como o Provador está funcionando neste ambiente (com ou sem análise de foto). */
+  @Get('config')
+  config(): TryOnConfig {
+    return this.service.config();
+  }
+
+  /** Provador Digital (Módulo 7) — parecer de estilo/caimento para um produto. */
   @Post('analyze')
   @HttpCode(HttpStatus.OK)
-  // Endpoint custoso (payload de imagem + futura chamada à Anthropic) —
-  // limite mais restrito que o padrão global, mesmo espírito do checkout.
+  // Endpoint custoso (payload de imagem + chamada à Anthropic quando há
+  // chave) — limite mais restrito que o padrão global, mesmo espírito do
+  // checkout.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   analyze(@Body() dto: AnalyzeTryOnDto): Promise<TryOnAnalysisResult> {
-    return this.service.analyze(dto.photoBase64, dto.productId);
+    return this.service.analyze(dto);
   }
 }
