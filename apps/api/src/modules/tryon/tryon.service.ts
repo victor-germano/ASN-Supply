@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { TryOnAnalysisResult, TryOnConfig } from '@asn/types';
 import { ProductsRepository } from '../catalog/products/products.repository';
-import { PrismaService } from '../prisma/prisma.service';
+import { FirestoreService } from '../firestore/firestore.service';
 import { TryOnAnalyzer } from './tryon-analyzer';
 import { recommendSizeByFootLength } from './size-chart';
 
@@ -16,7 +16,7 @@ export class TryOnService {
   constructor(
     private readonly analyzer: TryOnAnalyzer,
     private readonly productsRepository: ProductsRepository,
-    private readonly prisma: PrismaService,
+    private readonly firestore: FirestoreService,
   ) {}
 
   /** O site monta a tela a partir disto: pede foto só quando há quem a analise. */
@@ -53,18 +53,23 @@ export class TryOnService {
     if (request.footLengthCm === undefined) return result;
 
     // Medida informada vale mais que qualquer palpite por foto: o tamanho
-    // sai da tabela de medidas, igual nos dois adapters.
-    const inStock = await this.prisma.productVariant.findMany({
-      where: { productId: product.id, stockQuantity: { gt: 0 } },
-      select: { size: true },
-      distinct: ['size'],
-    });
+    // sai da tabela de medidas, igual nos dois adapters. `product.id` é o
+    // slug (ver `ProductsRepository`) — Product/ProductVariant migraram
+    // pro Firestore na Fase 3 da migração.
+    const variantsSnapshot = await this.firestore.db
+      .collection('products')
+      .doc(product.id)
+      .collection('variants')
+      .get();
+    const sizesInStock = new Set(
+      variantsSnapshot.docs
+        .map((doc) => doc.data() as { size: string; stockQuantity: number })
+        .filter((variant) => variant.stockQuantity > 0)
+        .map((variant) => variant.size),
+    );
     return {
       ...result,
-      fitRecommendation: recommendSizeByFootLength(
-        request.footLengthCm,
-        inStock.map((variant) => variant.size),
-      ),
+      fitRecommendation: recommendSizeByFootLength(request.footLengthCm, Array.from(sizesInStock)),
     };
   }
 }

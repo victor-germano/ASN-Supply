@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
-import type { Address as AddressModel } from '../../../generated/client';
 import { AddressesService } from './addresses.service';
-import type { AddressesRepository } from './addresses.repository';
+import type { AddressesRepository, AddressRecord } from './addresses.repository';
 
-function fakeAddress(overrides: Partial<AddressModel> = {}): AddressModel {
+function fakeAddress(overrides: Partial<AddressRecord> = {}): AddressRecord {
   return {
     id: 'addr_1',
     userId: 'user_1',
@@ -20,7 +19,7 @@ function fakeAddress(overrides: Partial<AddressModel> = {}): AddressModel {
     isDefault: false,
     createdAt: new Date(),
     ...overrides,
-  } as AddressModel;
+  } as AddressRecord;
 }
 
 describe('AddressesService', () => {

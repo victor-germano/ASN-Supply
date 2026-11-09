@@ -1,8 +1,9 @@
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Timestamp, type DocumentReference } from 'firebase-admin/firestore';
 import type { EnvConfig } from '../../config/env.validation';
-import { PrismaService } from '../prisma/prisma.service';
+import { FirestoreService } from '../firestore/firestore.service';
 
 export const RESET_CODE_TTL_MINUTES = 10;
 export const RESET_CODE_MAX_ATTEMPTS = 5;
@@ -27,38 +28,70 @@ export function hashResetCode(secret: string, userId: string, code: string): str
 
 export type ConsumeResult = 'ok' | 'invalid';
 
+interface CodeDoc {
+  userId: string;
+  codeHash: string;
+  expiresAt: Timestamp;
+  attempts: number;
+  usedAt: Timestamp | null;
+  createdAt: Timestamp;
+}
+
+/**
+ * Coleção top-level `passwordResetCodes` (não subcoleção de `users/{id}`) —
+ * nada aqui precisa de consulta entre usuários, mas manter como as outras
+ * coleções "de segurança" (mesmo nível de `userEmails`/`userGoogleIds`)
+ * deixa o caminho curto e direto por `userId` (índice de campo único,
+ * grátis). Sem índice composto: `issue`/`consume` leem todos os códigos do
+ * usuário (lista naturalmente pequena — no máximo `RESET_CODE_MAX_PER_HOUR`
+ * novos por hora, sem limpeza automática dos antigos) e filtram/ordenam o
+ * resto em memória, mesmo padrão usado no resto desta migração para evitar
+ * índice composto só criável pelo Console.
+ */
 @Injectable()
 export class PasswordResetCodeService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly firestore: FirestoreService,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
+
+  private get codes() {
+    return this.firestore.db.collection('passwordResetCodes');
+  }
 
   /**
    * Gera um código novo (invalidando os anteriores ainda abertos) ou `null`
    * se a conta já atingiu o teto de SMS da última hora.
    */
   async issue(userId: string, now = new Date()): Promise<string | null> {
-    const sentLastHour = await this.prisma.passwordResetCode.count({
-      where: { userId, createdAt: { gt: new Date(now.getTime() - 60 * 60 * 1000) } },
-    });
-    if (sentLastHour >= RESET_CODE_MAX_PER_HOUR) return null;
-
+    const cutoff = Timestamp.fromMillis(now.getTime() - 60 * 60 * 1000);
     const code = generateResetCode();
-    await this.prisma.$transaction([
-      this.prisma.passwordResetCode.updateMany({
-        where: { userId, usedAt: null },
-        data: { usedAt: now },
-      }),
-      this.prisma.passwordResetCode.create({
-        data: {
-          userId,
-          codeHash: hashResetCode(this.secret(), userId, code),
-          expiresAt: new Date(now.getTime() + RESET_CODE_TTL_MINUTES * 60 * 1000),
-        },
-      }),
-    ]);
-    return code;
+    const newRef = this.codes.doc();
+
+    const result = await this.firestore.db.runTransaction(async (tx) => {
+      const existing = await tx.get(this.codes.where('userId', '==', userId));
+      const docs = existing.docs.map((doc) => ({ ref: doc.ref, data: doc.data() as CodeDoc }));
+
+      const sentLastHour = docs.filter(
+        (d) => d.data.createdAt.toMillis() >= cutoff.toMillis(),
+      ).length;
+      if (sentLastHour >= RESET_CODE_MAX_PER_HOUR) return null;
+
+      for (const d of docs) {
+        if (d.data.usedAt === null) tx.update(d.ref, { usedAt: Timestamp.fromDate(now) });
+      }
+      tx.set(newRef, {
+        userId,
+        codeHash: hashResetCode(this.secret(), userId, code),
+        expiresAt: Timestamp.fromMillis(now.getTime() + RESET_CODE_TTL_MINUTES * 60 * 1000),
+        attempts: 0,
+        usedAt: null,
+        createdAt: Timestamp.fromDate(now),
+      } satisfies CodeDoc);
+      return code;
+    });
+
+    return result;
   }
 
   /**
@@ -66,31 +99,37 @@ export class PasswordResetCodeService {
    * morre — 1 milhão de combinações não resistem a tentativas ilimitadas.
    */
   async consume(userId: string, code: string, now = new Date()): Promise<ConsumeResult> {
-    const current = await this.prisma.passwordResetCode.findFirst({
-      where: { userId, usedAt: null, expiresAt: { gt: now } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!current || current.attempts >= RESET_CODE_MAX_ATTEMPTS) return 'invalid';
+    const snapshot = await this.codes.where('userId', '==', userId).get();
+    const candidates = snapshot.docs
+      .map((doc) => ({ ref: doc.ref, data: doc.data() as CodeDoc }))
+      .filter((d) => d.data.usedAt === null && d.data.expiresAt.toMillis() > now.getTime())
+      .sort((a, b) => b.data.createdAt.toMillis() - a.data.createdAt.toMillis());
+    const current = candidates[0];
+    if (!current || current.data.attempts >= RESET_CODE_MAX_ATTEMPTS) return 'invalid';
 
-    const expected = Buffer.from(current.codeHash, 'hex');
+    const expected = Buffer.from(current.data.codeHash, 'hex');
     const received = Buffer.from(hashResetCode(this.secret(), userId, code.trim()), 'hex');
     const matches = expected.length === received.length && timingSafeEqual(expected, received);
 
     if (!matches) {
-      await this.prisma.passwordResetCode.update({
-        where: { id: current.id },
-        data: { attempts: { increment: 1 } },
-      });
+      await current.ref.update({ attempts: current.data.attempts + 1 });
       return 'invalid';
     }
 
     // Condicional: duas requisições simultâneas com o código certo não
-    // podem as duas redefinir a senha.
-    const claimed = await this.prisma.passwordResetCode.updateMany({
-      where: { id: current.id, usedAt: null },
-      data: { usedAt: now },
+    // podem as duas redefinir a senha — relê dentro da transação e só
+    // "queima" se ainda não tiver sido usado.
+    return this.claim(current.ref, now);
+  }
+
+  private async claim(ref: DocumentReference, now: Date): Promise<ConsumeResult> {
+    return this.firestore.db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      const data = fresh.data() as CodeDoc | undefined;
+      if (!data || data.usedAt !== null) return 'invalid';
+      tx.update(ref, { usedAt: Timestamp.fromDate(now) });
+      return 'ok';
     });
-    return claimed.count === 1 ? 'ok' : 'invalid';
   }
 
   private secret(): string {

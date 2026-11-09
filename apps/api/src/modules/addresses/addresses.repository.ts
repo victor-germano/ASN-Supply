@@ -1,15 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type Address as AddressModel } from '../../../generated/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { Timestamp } from 'firebase-admin/firestore';
+import { FirestoreService } from '../firestore/firestore.service';
 
-// READ COMMITTED (padrão do Postgres/Prisma) permite, em tese, duas
-// requisições concorrentes de "definir como padrão" lerem o estado antes
-// uma da outra e ambas commitarem um endereço como `isDefault: true` —
-// Serializable fecha essa corrida (a segunda transação sobrepõe o
-// intervalo de leitura/escrita da primeira e é forçada a re-executar).
-const SET_DEFAULT_TX_OPTIONS = {
-  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-};
+export interface AddressRecord {
+  id: string;
+  userId: string;
+  label: string;
+  recipientName: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isDefault: boolean;
+  createdAt: Date;
+}
 
 export interface CreateAddressData {
   userId: string;
@@ -27,80 +34,127 @@ export interface CreateAddressData {
 
 export type UpdateAddressData = Partial<Omit<CreateAddressData, 'userId'>>;
 
+interface AddressDoc {
+  label: string;
+  recipientName: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isDefault: boolean;
+  createdAt: Timestamp;
+}
+
 /**
- * Acesso cru ao model `Address`. Proteção contra IDOR (um usuário editando
- * o endereço de outro) é responsabilidade do `AddressesService`, que sempre
- * confirma posse via `findOneForUser` antes de chamar `update`/`delete` por
- * id puro — este repositório não repete essa checagem.
+ * Acesso cru ao model `Address` — subcoleção `users/{userId}/addresses/{id}`
+ * desde a Fase 4 da migração (ver
+ * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md). Proteção
+ * contra IDOR (um usuário editando o endereço de outro) é responsabilidade
+ * do `AddressesService`, que sempre confirma posse via `findOneForUser`
+ * antes de chamar `update`/`delete` por id puro — este repositório não
+ * repete essa checagem (e o próprio caminho do documento já exige o
+ * `userId` certo para alcançar o endereço).
+ *
+ * "Só um endereço padrão por usuário" usa uma transação do Firestore em vez
+ * do `Serializable` + retry de `P2034` do Postgres — o SDK já resolve
+ * contenção com retry automático, não precisa de um `withSerializableRetry`
+ * próprio (ver comentário equivalente no plano).
  */
 @Injectable()
 export class AddressesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
-  findManyByUserId(userId: string): Promise<AddressModel[]> {
-    return this.prisma.address.findMany({
-      where: { userId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-    });
+  private addresses(userId: string) {
+    return this.firestore.db.collection('users').doc(userId).collection('addresses');
   }
 
-  findOneForUser(id: string, userId: string): Promise<AddressModel | null> {
-    return this.prisma.address.findFirst({ where: { id, userId } });
-  }
-
-  async create(data: CreateAddressData): Promise<AddressModel> {
-    const { userId, complement, isDefault, ...rest } = data;
-    if (!isDefault) {
-      return this.prisma.address.create({
-        data: { ...rest, userId, complement: complement ?? null, isDefault: false },
+  async findManyByUserId(userId: string): Promise<AddressRecord[]> {
+    const snapshot = await this.addresses(userId).get();
+    return snapshot.docs
+      .map((doc) => toAddressRecord(doc.id, userId, doc.data() as AddressDoc))
+      .sort((a, b) => {
+        const defaultDiff = Number(b.isDefault) - Number(a.isDefault);
+        if (defaultDiff !== 0) return defaultDiff;
+        return b.createdAt.getTime() - a.createdAt.getTime();
       });
+  }
+
+  async findOneForUser(id: string, userId: string): Promise<AddressRecord | null> {
+    const snap = await this.addresses(userId).doc(id).get();
+    if (!snap.exists) return null;
+    return toAddressRecord(snap.id, userId, snap.data() as AddressDoc);
+  }
+
+  async create(data: CreateAddressData): Promise<AddressRecord> {
+    const { userId, complement, isDefault, ...rest } = data;
+    const ref = this.addresses(userId).doc();
+    const doc: AddressDoc = {
+      ...rest,
+      complement: complement ?? null,
+      isDefault: isDefault ?? false,
+      createdAt: Timestamp.now(),
+    };
+
+    if (!doc.isDefault) {
+      await ref.set(doc);
+      return toAddressRecord(ref.id, userId, doc);
     }
+
     // Só um endereço padrão por usuário — zera os outros na mesma
     // transação que cria o novo já marcado como padrão.
-    return this.withSerializableRetry(() =>
-      this.prisma.$transaction(async (tx) => {
-        await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
-        return tx.address.create({
-          data: { ...rest, userId, complement: complement ?? null, isDefault: true },
-        });
-      }, SET_DEFAULT_TX_OPTIONS),
-    );
-  }
-
-  async update(id: string, userId: string, data: UpdateAddressData): Promise<AddressModel> {
-    if (!data.isDefault) {
-      return this.prisma.address.update({ where: { id }, data });
-    }
-    return this.withSerializableRetry(() =>
-      this.prisma.$transaction(async (tx) => {
-        await tx.address.updateMany({ where: { userId, NOT: { id } }, data: { isDefault: false } });
-        return tx.address.update({ where: { id }, data });
-      }, SET_DEFAULT_TX_OPTIONS),
-    );
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.prisma.address.delete({ where: { id } });
-  }
-
-  /**
-   * Serializable pode legitimamente abortar uma das duas transações
-   * concorrentes com um erro de conflito de escrita (P2034) — é o
-   * mecanismo funcionando como esperado, não uma falha real. Uma retentativa
-   * já resolve quase sempre (mesmo espírito do retry de colisão de código
-   * em `orders.repository.ts`, só que para conflito de serialização em vez
-   * de unique constraint).
-   */
-  private async withSerializableRetry<T>(run: () => Promise<T>, attempt = 1): Promise<T> {
-    try {
-      return await run();
-    } catch (error) {
-      const isSerializationConflict =
-        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
-      if (isSerializationConflict && attempt < 3) {
-        return this.withSerializableRetry(run, attempt + 1);
+    await this.firestore.db.runTransaction(async (tx) => {
+      const existing = await tx.get(this.addresses(userId));
+      for (const other of existing.docs) {
+        if ((other.data() as AddressDoc).isDefault) tx.update(other.ref, { isDefault: false });
       }
-      throw error;
-    }
+      tx.set(ref, doc);
+    });
+    return toAddressRecord(ref.id, userId, doc);
   }
+
+  async update(id: string, userId: string, data: UpdateAddressData): Promise<AddressRecord> {
+    const ref = this.addresses(userId).doc(id);
+
+    if (!data.isDefault) {
+      await ref.update(data);
+      const snap = await ref.get();
+      return toAddressRecord(snap.id, userId, snap.data() as AddressDoc);
+    }
+
+    await this.firestore.db.runTransaction(async (tx) => {
+      const existing = await tx.get(this.addresses(userId));
+      for (const other of existing.docs) {
+        if (other.id === id) continue;
+        if ((other.data() as AddressDoc).isDefault) tx.update(other.ref, { isDefault: false });
+      }
+      tx.update(ref, data);
+    });
+    const snap = await ref.get();
+    return toAddressRecord(snap.id, userId, snap.data() as AddressDoc);
+  }
+
+  async delete(id: string, userId: string): Promise<void> {
+    await this.addresses(userId).doc(id).delete();
+  }
+}
+
+function toAddressRecord(id: string, userId: string, doc: AddressDoc): AddressRecord {
+  return {
+    id,
+    userId,
+    label: doc.label,
+    recipientName: doc.recipientName,
+    street: doc.street,
+    number: doc.number,
+    complement: doc.complement,
+    neighborhood: doc.neighborhood,
+    city: doc.city,
+    state: doc.state,
+    zipCode: doc.zipCode,
+    isDefault: doc.isDefault,
+    createdAt: doc.createdAt.toDate(),
+  };
 }

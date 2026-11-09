@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import type { Timestamp } from 'firebase-admin/firestore';
 import type { EnvConfig } from '../../config/env.validation';
 import { PrismaService } from '../prisma/prisma.service';
 import { FirestoreService } from '../firestore/firestore.service';
@@ -14,8 +15,32 @@ interface ProductLookup {
   isPublished: boolean;
 }
 
+interface UserDoc {
+  name: string;
+  phone: string | null;
+  marketingOptIn: boolean;
+}
+
+interface ActivityRow {
+  type: string;
+  createdAt: Date;
+  productId: string;
+}
+
+interface CandidateContext {
+  userId: string;
+  name: string;
+  phone: string;
+  activities: ActivityRow[];
+  lastOrderAt: Date | null;
+  lastReminderAt: Date | null;
+  inCartIds: Set<string>;
+}
+
 /** Por rodada — volume de uma loja pequena; o resto fica pra próxima rodada (15 min). */
 const BATCH_SIZE = 200;
+/** Mesmo teto de antes (`take: 20` nas atividades do usuário). */
+const ACTIVITIES_PER_USER = 20;
 
 /**
  * Lembrete "sentimos sua falta" por SMS: cliente LOGADO que autorizou
@@ -23,6 +48,16 @@ const BATCH_SIZE = 200;
  * produto e saiu sem comprar. Todas as regras de quando NÃO mandar ficam
  * em `decideRecovery` (testadas); aqui é só buscar candidatos, escolher o
  * produto a citar e registrar o envio.
+ *
+ * `User` migrou pro Firestore na Fase 4 (ver
+ * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md) —
+ * `CustomerActivity`/`RecoveryMessage` continuam no Postgres (não migram
+ * até a Fase 5), então o `findMany` com `include` encadeado de antes
+ * (User → activities/orders/recoveryMessages/cart, tudo numa query só) não
+ * é mais possível: usuário e atividade vivem em bancos diferentes agora.
+ * A consulta inverte de direção — começa pela atividade recente (ainda no
+ * Postgres, com o filtro de tempo), resolve os usuários distintos, e só
+ * então busca o resto (Firestore: usuário, pedidos, carrinho) por usuário.
  *
  * Roda dentro da própria API (uma instância). Se um dia houver várias
  * instâncias, isto precisa de um lock (ex: Redis) pra não enviar em dobro.
@@ -59,54 +94,39 @@ export class RecoveryReminderService {
     const delayMinutes = this.config.get('RECOVERY_REMINDER_DELAY_MINUTES', { infer: true });
     const since = new Date(now.getTime() - RECOVERY_MAX_AGE_HOURS * 3_600_000);
 
-    const candidates = await this.prisma.user.findMany({
-      where: {
-        marketingOptIn: true,
-        phone: { not: null },
-        activities: { some: { createdAt: { gte: since } } },
-      },
+    // Usuários distintos com atividade recente — mais recentes primeiro,
+    // até o teto da rodada (aproximação do antigo "até 200 usuários": agora
+    // é "até 200 usuários distintos entre os mais recentemente ativos").
+    const recentActivity = await this.prisma.customerActivity.findMany({
+      where: { createdAt: { gte: since } },
+      distinct: ['userId'],
+      orderBy: { createdAt: 'desc' },
       take: BATCH_SIZE,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        marketingOptIn: true,
-        activities: {
-          where: { createdAt: { gte: since } },
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-          select: {
-            type: true,
-            createdAt: true,
-            productId: true,
-          },
-        },
-        orders: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
-        recoveryMessages: { orderBy: { sentAt: 'desc' }, take: 1, select: { sentAt: true } },
-        cart: { select: { items: { select: { productId: true } } } },
-      },
+      select: { userId: true },
     });
+    if (recentActivity.length === 0) return 0;
 
-    // `productId` aqui é o slug do produto no Firestore (Product saiu do
-    // Postgres na Fase 3 da migração) — sem `@relation` mais pra incluir
-    // via Prisma, então resolvido em lote por fora, uma vez por rodada.
-    const productIds = new Set(
-      candidates.flatMap((user) => user.activities.map((activity) => activity.productId)),
+    const candidates = await this.resolveCandidates(
+      recentActivity.map((a) => a.userId),
+      since,
     );
+    if (candidates.length === 0) return 0;
+
+    const productIds = new Set(candidates.flatMap((c) => c.activities.map((a) => a.productId)));
     const productById = await this.resolveProducts(productIds);
 
     let sent = 0;
-    for (const user of candidates) {
-      const lastActivity = user.activities[0];
+    for (const candidate of candidates) {
+      const lastActivity = candidate.activities[0];
       if (!lastActivity) continue;
 
       const decision = decideRecovery(
         {
-          marketingOptIn: user.marketingOptIn,
-          phone: user.phone,
+          marketingOptIn: true,
+          phone: candidate.phone,
           lastActivityAt: lastActivity.createdAt,
-          lastOrderAt: user.orders[0]?.createdAt ?? null,
-          lastReminderAt: user.recoveryMessages[0]?.sentAt ?? null,
+          lastOrderAt: candidate.lastOrderAt,
+          lastReminderAt: candidate.lastReminderAt,
         },
         now,
         delayMinutes,
@@ -115,12 +135,11 @@ export class RecoveryReminderService {
 
       // Prioridade: o que continua NO CARRINHO (intenção mais forte); senão,
       // o último produto visto. Nunca cita produto despublicado.
-      const inCartIds = new Set(user.cart?.items.map((item) => item.productId) ?? []);
-      const published = user.activities.filter(
+      const published = candidate.activities.filter(
         (activity) => productById.get(activity.productId)?.isPublished,
       );
       const fromCart = published.find(
-        (activity) => activity.type === 'CART_ADD' && inCartIds.has(activity.productId),
+        (activity) => activity.type === 'CART_ADD' && candidate.inCartIds.has(activity.productId),
       );
       const chosenActivity = fromCart ?? published[0];
       if (!chosenActivity) continue;
@@ -129,7 +148,7 @@ export class RecoveryReminderService {
 
       const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
       const body = recoveryReminderSms({
-        firstName: firstNameOf(user.name),
+        firstName: firstNameOf(candidate.name),
         productName: chosenProduct.name,
         inCart: Boolean(fromCart),
         link: fromCart ? `${webAppUrl}/carrinho` : `${webAppUrl}/produtos/${chosenProduct.slug}`,
@@ -137,17 +156,106 @@ export class RecoveryReminderService {
       });
 
       try {
-        await this.sender.send({ to: user.phone!, body });
+        await this.sender.send({ to: candidate.phone, body });
         await this.prisma.recoveryMessage.create({
-          data: { userId: user.id, productName: chosenProduct.name, body },
+          data: { userId: candidate.userId, productName: chosenProduct.name, body },
         });
         sent++;
       } catch (error) {
         // Falhou o envio: sem registro, a próxima rodada tenta de novo.
-        this.logger.error(`Lembrete não enviado (usuário ${user.id}): ${error}`);
+        this.logger.error(`Lembrete não enviado (usuário ${candidate.userId}): ${error}`);
       }
     }
     return sent;
+  }
+
+  /**
+   * Resolve, por usuário distinto com atividade recente: dados do usuário
+   * (Firestore — filtra opt-in/celular), as próprias atividades (Postgres),
+   * o último pedido (Firestore, pra `decideRecovery` não insistir em quem
+   * já comprou) e o carrinho atual (Firestore, pra priorizar o que ficou
+   * dentro dele). Descarta quem não tem opt-in ou celular antes de buscar
+   * o resto — a maioria dos custos de leitura só vale a pena pra quem
+   * sobrevive esse primeiro filtro.
+   */
+  private async resolveCandidates(userIds: string[], since: Date): Promise<CandidateContext[]> {
+    const userDocs = await this.firestore.db.getAll(
+      ...userIds.map((id) => this.firestore.db.collection('users').doc(id)),
+    );
+    const eligibleIds = userDocs
+      .filter((doc) => {
+        if (!doc.exists) return false;
+        const data = doc.data() as UserDoc;
+        return data.marketingOptIn && !!data.phone;
+      })
+      .map((doc) => doc.id);
+    if (eligibleIds.length === 0) return [];
+
+    const userById = new Map(
+      userDocs
+        .filter((doc) => eligibleIds.includes(doc.id))
+        .map((doc) => [doc.id, doc.data() as UserDoc] as const),
+    );
+
+    const [activitiesByUser, lastReminderByUser] = await Promise.all([
+      this.prisma.customerActivity.findMany({
+        where: { userId: { in: eligibleIds }, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        select: { userId: true, type: true, createdAt: true, productId: true },
+      }),
+      this.prisma.recoveryMessage.findMany({
+        where: { userId: { in: eligibleIds } },
+        orderBy: { sentAt: 'desc' },
+        distinct: ['userId'],
+        select: { userId: true, sentAt: true },
+      }),
+    ]);
+
+    const lastReminderByUserId = new Map(
+      lastReminderByUser.map((row) => [row.userId, row.sentAt] as const),
+    );
+
+    return Promise.all(
+      eligibleIds.map(async (userId) => {
+        const activities = activitiesByUser
+          .filter((row) => row.userId === userId)
+          .slice(0, ACTIVITIES_PER_USER);
+        const [lastOrderAt, inCartIds] = await Promise.all([
+          this.lastOrderAt(userId),
+          this.cartProductIds(userId),
+        ]);
+        return {
+          userId,
+          name: userById.get(userId)!.name,
+          phone: userById.get(userId)!.phone!,
+          activities,
+          lastOrderAt,
+          lastReminderAt: lastReminderByUserId.get(userId) ?? null,
+          inCartIds,
+        } satisfies CandidateContext;
+      }),
+    );
+  }
+
+  private async lastOrderAt(userId: string): Promise<Date | null> {
+    const snapshot = await this.firestore.db
+      .collection('orders')
+      .where('userId', '==', userId)
+      .get();
+    if (snapshot.empty) return null;
+    const latest = Math.max(
+      ...snapshot.docs.map((doc) => (doc.data().createdAt as Timestamp).toMillis()),
+    );
+    return new Date(latest);
+  }
+
+  private async cartProductIds(userId: string): Promise<Set<string>> {
+    const snapshot = await this.firestore.db
+      .collection('carts')
+      .doc(userId)
+      .collection('items')
+      .get();
+    return new Set(snapshot.docs.map((doc) => (doc.data() as { productSlug: string }).productSlug));
   }
 
   private async resolveProducts(ids: Set<string>): Promise<Map<string, ProductLookup>> {

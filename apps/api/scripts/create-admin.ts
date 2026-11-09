@@ -9,14 +9,20 @@
  *
  * Nenhum dado pessoal fica neste arquivo — e-mail e nome vêm na linha de
  * comando. Mesma fronteira de confiança de `promote-to-admin.ts`: só quem
- * tem acesso ao banco cria administradores.
+ * tem acesso ao Firestore de produção (ou ao `.env` local) cria
+ * administradores.
+ *
+ * `User` migrou pro Firestore na Fase 4 (ver
+ * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md) — mesma
+ * coleção `users` + trava `userEmails` que `UsersRepository.create` usa.
  */
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '../generated/client';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getDb } from '../src/config/firebase-admin';
 
 const BCRYPT_ROUNDS = 12;
-const prisma = new PrismaClient();
+const db = getDb();
 
 /** 16 caracteres sem ambiguidade (sem 0/O, 1/l/I) — fácil de digitar uma vez. */
 function temporaryPassword(): string {
@@ -33,26 +39,44 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    if (existing.role === 'ADMIN') {
+  const emailLockRef = db.collection('userEmails').doc(email);
+  const existingLock = await emailLockRef.get();
+  if (existingLock.exists) {
+    const userId = (existingLock.data() as { userId: string }).userId;
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const role = (userSnap.data() as { role: string } | undefined)?.role;
+    if (role === 'ADMIN') {
       console.log(`"${email}" já é ADMIN — nada a fazer.`);
       return;
     }
-    await prisma.user.update({ where: { id: existing.id }, data: { role: 'ADMIN' } });
+    await userRef.update({ role: 'ADMIN' });
     console.log(`"${email}" promovida a ADMIN (senha atual mantida).`);
     return;
   }
 
   const password = temporaryPassword();
-  await prisma.user.create({
-    data: {
-      email,
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const userRef = db.collection('users').doc();
+  const now = Timestamp.now();
+  await db.runTransaction(async (tx) => {
+    tx.set(emailLockRef, { userId: userRef.id });
+    tx.set(userRef, {
       name,
+      email,
+      passwordHash,
       role: 'ADMIN',
-      passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
-      termsAcceptedAt: new Date(),
-    },
+      avatarUrl: null,
+      googleId: null,
+      appleId: null,
+      emailVerifiedAt: null,
+      phone: null,
+      marketingOptIn: false,
+      marketingOptInAt: null,
+      termsAcceptedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
   console.log(`Conta ADMIN criada para "${email}".`);
   console.log(`Senha temporária (aparece só agora): ${password}`);
@@ -61,9 +85,7 @@ async function main() {
   );
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error('Falha ao criar admin:', error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((error: unknown) => {
+  console.error('Falha ao criar admin:', error);
+  process.exitCode = 1;
+});

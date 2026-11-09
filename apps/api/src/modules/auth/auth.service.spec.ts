@@ -4,9 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import type { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
 import type { EnvConfig } from '../../config/env.validation';
-import type { User } from '../../../generated/client';
 import { AuthService } from './auth.service';
-import type { UsersRepository } from '../users/users.repository';
+import type { UsersRepository, UserRecord } from '../users/users.repository';
 import type { EmailSender } from '../email/email-sender';
 import type { TextMessageSender } from '../messaging/text-message-sender';
 import type { PasswordResetCodeService } from './password-reset-code.service';
@@ -29,7 +28,7 @@ function fakeEmailSender(): EmailSender {
   return { send: vi.fn().mockResolvedValue(undefined) } as unknown as EmailSender;
 }
 
-function fakeUser(overrides: Partial<User> = {}): User {
+function fakeUser(overrides: Partial<UserRecord> = {}): UserRecord {
   return {
     id: 'user_1',
     name: 'Camila Rocha',
@@ -47,7 +46,7 @@ function fakeUser(overrides: Partial<User> = {}): User {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-  } as User;
+  } as UserRecord;
 }
 
 function fakeTextSender(): TextMessageSender {

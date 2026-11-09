@@ -21,9 +21,8 @@ import { normalizeBrazilianMobile } from '../messaging/phone';
 import { TextMessageSender } from '../messaging/text-message-sender';
 import { passwordResetCodeSms } from '../messaging/templates';
 import { PasswordResetCodeService, RESET_CODE_TTL_MINUTES } from './password-reset-code.service';
-import { Prisma, type User } from '../../../generated/client';
 import type { EnvConfig } from '../../config/env.validation';
-import { UsersRepository } from '../users/users.repository';
+import { UsersRepository, type UserRecord } from '../users/users.repository';
 import { EmailSender } from '../email/email-sender';
 import {
   emailVerificationEmail,
@@ -91,41 +90,28 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    try {
-      const user = await this.usersRepository.create({
-        name: `${input.firstName.trim()} ${input.lastName.trim()}`,
-        email: input.email,
-        passwordHash,
-        phone,
-        marketingOptIn: input.marketingOptIn === true,
-        address: input.address,
-      });
-      // Fire-and-forget: uma falha de envio (provedor fora do ar, chave
-      // ainda não configurada) não pode impedir o cadastro em si — o
-      // usuário sempre pode pedir reenvio depois (`requestEmailVerification`).
-      this.sendVerificationEmail(user).catch((error) =>
-        this.logger.error(`Falha ao enviar e-mail de verificação para "${user.email}": ${error}`),
-      );
-      return this.issueTokenPair(user);
-    } catch (error) {
-      // A checagem acima (`findByEmail`) e o `create` não são atômicos —
-      // duas requisições concorrentes com o mesmo e-mail podem ambas passar
-      // por "não existe" antes de qualquer uma commitar. Sem isto, a
-      // segunda cai na constraint `@unique` do banco e vira um 500 cru em
-      // vez do 409 esperado (mesmo padrão de `createWithRetry` em
-      // orders.repository.ts para colisão de código de pedido).
-      const isDuplicateEmail =
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002' &&
-        (error.meta?.target as string[] | undefined)?.includes('email');
-      if (isDuplicateEmail) {
-        throw new ConflictException({
-          errorCode: 'EMAIL_TAKEN',
-          message: 'Este e-mail já está cadastrado.',
-        });
-      }
-      throw error;
-    }
+    // A checagem acima (`findByEmail`) e o `create` não são atômicos — duas
+    // requisições concorrentes com o mesmo e-mail podem ambas passar por
+    // "não existe" antes de qualquer uma commitar. Sem problema: a trava de
+    // unicidade agora é a própria transação do Firestore em
+    // `UsersRepository.create` (coleção `userEmails`), que já devolve 409
+    // (`ConflictException`) direto — não precisa de um catch aqui, como
+    // precisava do `P2002` do Postgres.
+    const user = await this.usersRepository.create({
+      name: `${input.firstName.trim()} ${input.lastName.trim()}`,
+      email: input.email,
+      passwordHash,
+      phone,
+      marketingOptIn: input.marketingOptIn === true,
+      address: input.address,
+    });
+    // Fire-and-forget: uma falha de envio (provedor fora do ar, chave
+    // ainda não configurada) não pode impedir o cadastro em si — o
+    // usuário sempre pode pedir reenvio depois (`requestEmailVerification`).
+    this.sendVerificationEmail(user).catch((error) =>
+      this.logger.error(`Falha ao enviar e-mail de verificação para "${user.email}": ${error}`),
+    );
+    return this.issueTokenPair(user);
   }
 
   async login(input: LoginInput): Promise<AuthResponse> {
@@ -305,7 +291,7 @@ export class AuthService {
   }
 
   /** Troca a senha (derrubando sessões antigas via `pwv`), avisa por e-mail e abre sessão nova. */
-  private async applyNewPassword(user: User, newPassword: string): Promise<AuthResponse> {
+  private async applyNewPassword(user: UserRecord, newPassword: string): Promise<AuthResponse> {
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     const updated = await this.usersRepository.updatePasswordHash(user.id, passwordHash);
     this.loginLockout.clear(updated.email);
@@ -347,7 +333,7 @@ export class AuthService {
     await this.usersRepository.markEmailVerified(payload.sub);
   }
 
-  private async sendVerificationEmail(user: User): Promise<void> {
+  private async sendVerificationEmail(user: UserRecord): Promise<void> {
     const token = await this.jwtService.signAsync(
       {
         sub: user.id,
@@ -380,7 +366,7 @@ export class AuthService {
     }
   }
 
-  private async issueTokenPair(user: User): Promise<AuthResponse> {
+  private async issueTokenPair(user: UserRecord): Promise<AuthResponse> {
     const basePayload = { sub: user.id, email: user.email, role: user.role };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync({ ...basePayload, type: 'access' } satisfies JwtPayload, {
@@ -401,11 +387,11 @@ function computePasswordVersion(passwordHash: string): string {
 }
 
 /** `undefined` pra conta só-OAuth (sem senha própria — nada pra versionar). */
-function passwordVersionOf(user: User): string | undefined {
+function passwordVersionOf(user: UserRecord): string | undefined {
   return user.passwordHash ? computePasswordVersion(user.passwordHash) : undefined;
 }
 
-function toAuthenticatedUser(user: User): AuthenticatedUser {
+function toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
   return {
     id: user.id,
     name: user.name,

@@ -35,6 +35,6 @@ export class ReviewsController {
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateReviewDto): Promise<Review> {
-    return this.repository.create(user.id, dto);
+    return this.repository.create(user.id, user.name, dto);
   }
 }

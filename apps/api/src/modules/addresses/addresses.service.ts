@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Address, CreateAddressInput, UpdateAddressInput } from '@asn/types';
-import type { Address as AddressModel } from '../../../generated/client';
-import { AddressesRepository } from './addresses.repository';
+import { AddressesRepository, type AddressRecord } from './addresses.repository';
 
 @Injectable()
 export class AddressesService {
@@ -31,11 +30,11 @@ export class AddressesService {
 
   async remove(userId: string, id: string): Promise<void> {
     await this.requireOwnership(id, userId);
-    await this.repository.delete(id);
+    await this.repository.delete(id, userId);
   }
 
   /** Toda operação de escrita passa por aqui antes — nunca confia num `id` sozinho (proteção IDOR). */
-  private async requireOwnership(id: string, userId: string): Promise<AddressModel> {
+  private async requireOwnership(id: string, userId: string): Promise<AddressRecord> {
     const address = await this.repository.findOneForUser(id, userId);
     if (!address) {
       throw new NotFoundException({
@@ -47,7 +46,7 @@ export class AddressesService {
   }
 }
 
-function toAddress(row: AddressModel): Address {
+function toAddress(row: AddressRecord): Address {
   return {
     id: row.id,
     label: row.label,

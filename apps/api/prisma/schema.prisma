@@ -46,11 +46,8 @@ model User {
   addresses          Address[]
   orders             Order[]
   reviews            Review[]
-  wishlistItems      WishlistItem[]
   cart               Cart?
   passwordResetCodes PasswordResetCode[]
-  activities         CustomerActivity[]
-  recoveryMessages   RecoveryMessage[]
 
   @@map("users")
 }
@@ -85,10 +82,14 @@ enum CustomerActivityType {
 /// então uma FK aqui bloquearia qualquer atividade sobre produto criado
 /// depois do corte. A existência do produto é checada contra o Firestore em
 /// `activity.controller.ts`, não mais garantida pelo banco.
+///
+/// `userId` também sem `@relation`, pelo mesmo motivo — User saiu do
+/// Postgres na Fase 4 (ver plano acima). A existência do usuário já está
+/// garantida fora do banco: só chega aqui o `id` de um `AuthenticatedUser`
+/// validado pelo `JwtAuthGuard` nesta mesma requisição.
 model CustomerActivity {
   id        String               @id @default(cuid())
   userId    String
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
   type      CustomerActivityType
   createdAt DateTime             @default(now())
@@ -100,10 +101,12 @@ model CustomerActivity {
 
 /// Lembretes enviados — garante no máximo um por cliente por janela (ver
 /// `RECOVERY_COOLDOWN_DAYS`) e serve de registro do que foi dito a quem.
+///
+/// `userId` sem `@relation` — mesmo motivo de `CustomerActivity.userId`
+/// (User saiu do Postgres na Fase 4 da migração pro Firestore).
 model RecoveryMessage {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productName String
   body        String
   sentAt      DateTime @default(now())
@@ -336,11 +339,12 @@ model ProductQuestion {
 }
 
 /// `productId` sem `@relation` — mesmo motivo de `CustomerActivity.productId`
-/// (Product saiu do Postgres na Fase 3 da migração pro Firestore).
+/// (Product saiu do Postgres na Fase 3 da migração pro Firestore). `userId`
+/// também sem `@relation`, mesmo motivo de `CustomerActivity.userId` (User
+/// saiu do Postgres na Fase 4).
 model WishlistItem {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
   addedAt   DateTime @default(now())
 
