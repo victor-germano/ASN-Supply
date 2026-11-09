@@ -1,23 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import type { SocialPost } from '@asn/types';
-import { PrismaService } from '../../prisma/prisma.service';
+import { FirestoreService } from '../../firestore/firestore.service';
+
+interface SocialPostDoc {
+  imageUrl: string;
+  permalink: string;
+  caption: string | null;
+  position: number;
+  isActive: boolean;
+}
 
 @Injectable()
 export class SocialPostsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
+  /**
+   * Filtra e ordena em memória em vez de `where(...).orderBy(...)` no Firestore
+   * de propósito — ver comentário equivalente em `BannersRepository.findActive`.
+   */
   async findActive(limit: number): Promise<SocialPost[]> {
-    const posts = await this.prisma.socialPost.findMany({
-      where: { isActive: true },
-      orderBy: { position: 'asc' },
-      take: limit,
-    });
+    const snapshot = await this.firestore.db.collection('socialPosts').get();
 
-    return posts.map((post) => ({
-      id: post.id,
-      imageUrl: post.imageUrl,
-      permalink: post.permalink,
-      caption: post.caption,
-    }));
+    return snapshot.docs
+      .map((doc) => ({ id: doc.id, ...(doc.data() as SocialPostDoc) }))
+      .filter((post) => post.isActive)
+      .sort((a, b) => a.position - b.position)
+      .slice(0, limit)
+      .map((post) => ({
+        id: post.id,
+        imageUrl: post.imageUrl,
+        permalink: post.permalink,
+        caption: post.caption,
+      }));
   }
 }

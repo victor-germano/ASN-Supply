@@ -113,6 +113,23 @@ const envSchema = z
     // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário
     // em `apps/api/src/modules/admin/admin.module.ts`.
     ADMIN_API_KEY: z.string().optional(),
+    // Migração Postgres→Firestore em andamento (ver plano em
+    // C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md): o JSON da
+    // service account do Firebase, em base64 numa linha só — evita o
+    // problema conhecido de chave privada multi-linha quebrar na UI de
+    // variáveis do Railway. Opcional por ora (DATABASE_URL/Postgres ainda é
+    // quem roda em produção); passa a obrigatória quando o corte acontecer.
+    // Alternativa só para dev local: `GOOGLE_APPLICATION_CREDENTIALS`
+    // apontando pro arquivo da service account (lido direto via
+    // `process.env`, fora deste schema) — ver `firebase-admin.ts`.
+    // Sem variável de bucket: upload de imagem usa Cloudinary, não o
+    // Firebase Storage (ver `CLOUDINARY_URL` e `firestore.service.ts`).
+    FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
+    // Busca/filtro do catálogo (ver mesmo plano) — índice `products` e suas
+    // réplicas de ordenação.
+    ALGOLIA_APP_ID: z.string().optional(),
+    ALGOLIA_ADMIN_API_KEY: z.string().optional(),
+    ALGOLIA_INDEX_NAME: z.string().default('products'),
   })
   .refine((env) => !env.PIX_KEY || (env.PIX_RECEIVER_NAME && env.PIX_RECEIVER_CITY), {
     message:
