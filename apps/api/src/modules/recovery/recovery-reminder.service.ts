@@ -3,9 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import type { EnvConfig } from '../../config/env.validation';
 import { PrismaService } from '../prisma/prisma.service';
+import { FirestoreService } from '../firestore/firestore.service';
 import { TextMessageSender } from '../messaging/text-message-sender';
 import { recoveryReminderSms } from '../messaging/templates';
 import { RECOVERY_MAX_AGE_HOURS, decideRecovery, firstNameOf } from './recovery-policy';
+
+interface ProductLookup {
+  name: string;
+  slug: string;
+  isPublished: boolean;
+}
 
 /** Por rodada — volume de uma loja pequena; o resto fica pra próxima rodada (15 min). */
 const BATCH_SIZE = 200;
@@ -27,6 +34,7 @@ export class RecoveryReminderService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly firestore: FirestoreService,
     private readonly sender: TextMessageSender,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
@@ -71,7 +79,6 @@ export class RecoveryReminderService {
             type: true,
             createdAt: true,
             productId: true,
-            product: { select: { name: true, slug: true, isPublished: true } },
           },
         },
         orders: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
@@ -79,6 +86,14 @@ export class RecoveryReminderService {
         cart: { select: { items: { select: { productId: true } } } },
       },
     });
+
+    // `productId` aqui é o slug do produto no Firestore (Product saiu do
+    // Postgres na Fase 3 da migração) — sem `@relation` mais pra incluir
+    // via Prisma, então resolvido em lote por fora, uma vez por rodada.
+    const productIds = new Set(
+      candidates.flatMap((user) => user.activities.map((activity) => activity.productId)),
+    );
+    const productById = await this.resolveProducts(productIds);
 
     let sent = 0;
     for (const user of candidates) {
@@ -101,26 +116,30 @@ export class RecoveryReminderService {
       // Prioridade: o que continua NO CARRINHO (intenção mais forte); senão,
       // o último produto visto. Nunca cita produto despublicado.
       const inCartIds = new Set(user.cart?.items.map((item) => item.productId) ?? []);
-      const published = user.activities.filter((activity) => activity.product.isPublished);
+      const published = user.activities.filter(
+        (activity) => productById.get(activity.productId)?.isPublished,
+      );
       const fromCart = published.find(
         (activity) => activity.type === 'CART_ADD' && inCartIds.has(activity.productId),
       );
-      const chosen = fromCart ?? published[0];
-      if (!chosen) continue;
+      const chosenActivity = fromCart ?? published[0];
+      if (!chosenActivity) continue;
+      const chosenProduct = productById.get(chosenActivity.productId);
+      if (!chosenProduct) continue;
 
       const webAppUrl = this.config.get('WEB_APP_URL', { infer: true });
       const body = recoveryReminderSms({
         firstName: firstNameOf(user.name),
-        productName: chosen.product.name,
+        productName: chosenProduct.name,
         inCart: Boolean(fromCart),
-        link: fromCart ? `${webAppUrl}/carrinho` : `${webAppUrl}/produtos/${chosen.product.slug}`,
+        link: fromCart ? `${webAppUrl}/carrinho` : `${webAppUrl}/produtos/${chosenProduct.slug}`,
         optOutLink: `${webAppUrl}/conta/preferencias`,
       });
 
       try {
         await this.sender.send({ to: user.phone!, body });
         await this.prisma.recoveryMessage.create({
-          data: { userId: user.id, productName: chosen.product.name, body },
+          data: { userId: user.id, productName: chosenProduct.name, body },
         });
         sent++;
       } catch (error) {
@@ -129,5 +148,20 @@ export class RecoveryReminderService {
       }
     }
     return sent;
+  }
+
+  private async resolveProducts(ids: Set<string>): Promise<Map<string, ProductLookup>> {
+    const map = new Map<string, ProductLookup>();
+    if (ids.size === 0) return map;
+    const docs = await Promise.all(
+      Array.from(ids).map((id) => this.firestore.db.collection('products').doc(id).get()),
+    );
+    for (const doc of docs) {
+      if (!doc.exists) continue;
+      // Sem `slug` no documento — o id já É o slug (ver `AdminProductsRepository`).
+      const data = doc.data() as { name: string; isPublished: boolean };
+      map.set(doc.id, { name: data.name, slug: doc.id, isPublished: data.isPublished });
+    }
+    return map;
   }
 }

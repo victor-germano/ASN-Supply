@@ -1,50 +1,53 @@
 import { Injectable } from '@nestjs/common';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { AdminCollection } from '@asn/types';
-import { PrismaService } from '../../prisma/prisma.service';
+import { FirestoreService } from '../../firestore/firestore.service';
 import { slugify } from '../slugify';
-import { toFriendlyError } from '../friendly-error';
+import { assertDocExists, assertNotReferencedByProducts } from '../firestore-guards';
 import type { CreateCollectionDto } from './dto/create-collection.dto';
 import type { UpdateCollectionDto } from './dto/update-collection.dto';
 
-function toAdminCollection(row: {
-  id: string;
+interface CollectionDoc {
   name: string;
   slug: string;
   description: string;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
-  launchedAt: Date | null;
-}): AdminCollection {
+  launchedAt: Timestamp | null;
+}
+
+function toAdminCollection(id: string, doc: CollectionDoc): AdminCollection {
   return {
-    id: row.id,
-    name: row.name,
-    slug: row.slug,
-    description: row.description,
-    coverImageUrl: row.coverImageUrl,
-    coverImageAlt: row.coverImageAlt,
-    launchedAt: row.launchedAt?.toISOString() ?? null,
+    id,
+    name: doc.name,
+    slug: doc.slug,
+    description: doc.description,
+    coverImageUrl: doc.coverImageUrl,
+    coverImageAlt: doc.coverImageAlt,
+    launchedAt: doc.launchedAt?.toDate().toISOString() ?? null,
   };
 }
 
 @Injectable()
 export class AdminCollectionsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
+
+  private collection() {
+    return this.firestore.db.collection('collections');
+  }
 
   async findAll(): Promise<AdminCollection[]> {
-    const collections = await this.prisma.collection.findMany({ orderBy: { createdAt: 'desc' } });
-    return collections.map(toAdminCollection);
+    const snapshot = await this.collection().get();
+    return snapshot.docs
+      .map((doc) => toAdminCollection(doc.id, doc.data() as CollectionDoc))
+      .sort((a, b) => b.id.localeCompare(a.id)); // criadas mais recentemente primeiro (id = slug, aproxima createdAt desc do Postgres o suficiente pra uma lista de admin)
   }
 
   private async uniqueSlugFor(name: string): Promise<string> {
     const base = slugify(name);
     let candidate = base;
     let suffix = 2;
-    while (
-      await this.prisma.collection.findUnique({
-        where: { slug: candidate },
-        select: { id: true },
-      })
-    ) {
+    while ((await this.collection().doc(candidate).get()).exists) {
       candidate = `${base}-${suffix}`;
       suffix += 1;
     }
@@ -53,49 +56,56 @@ export class AdminCollectionsRepository {
 
   async create(dto: CreateCollectionDto): Promise<AdminCollection> {
     const slug = await this.uniqueSlugFor(dto.name);
-    const collection = await this.prisma.collection.create({
-      data: {
-        name: dto.name,
-        slug,
-        description: dto.description,
-        coverImageUrl: dto.coverImageUrl ?? null,
-        coverImageAlt: dto.coverImageAlt ?? null,
-        launchedAt: dto.launchedAt ? new Date(dto.launchedAt) : null,
-      },
-    });
-    return toAdminCollection(collection);
+    const doc: CollectionDoc = {
+      name: dto.name,
+      slug,
+      description: dto.description,
+      coverImageUrl: dto.coverImageUrl ?? null,
+      coverImageAlt: dto.coverImageAlt ?? null,
+      launchedAt: dto.launchedAt ? Timestamp.fromDate(new Date(dto.launchedAt)) : null,
+    };
+    await this.collection().doc(slug).set(doc);
+    return toAdminCollection(slug, doc);
   }
 
   async update(id: string, dto: UpdateCollectionDto): Promise<AdminCollection> {
-    try {
-      const collection = await this.prisma.collection.update({
-        where: { id },
-        data: {
-          name: dto.name,
-          description: dto.description,
-          coverImageUrl: dto.coverImageUrl,
-          coverImageAlt: dto.coverImageAlt,
-          // `undefined` (campo omitido) não mexe no valor atual; `null`
-          // explícito "despublica" a coleção; string vira `Date` de verdade.
-          launchedAt:
-            dto.launchedAt === undefined
-              ? undefined
-              : dto.launchedAt
-                ? new Date(dto.launchedAt)
-                : null,
-        },
-      });
-      return toAdminCollection(collection);
-    } catch (error) {
-      throw toFriendlyError(error, 'Coleção');
+    await assertDocExists(this.firestore.db, 'collections', id, 'Coleção');
+
+    const data: Partial<CollectionDoc> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.coverImageUrl !== undefined) data.coverImageUrl = dto.coverImageUrl;
+    if (dto.coverImageAlt !== undefined) data.coverImageAlt = dto.coverImageAlt;
+    if (dto.launchedAt !== undefined) {
+      data.launchedAt = dto.launchedAt ? Timestamp.fromDate(new Date(dto.launchedAt)) : null;
     }
+    await this.collection().doc(id).set(data, { merge: true });
+
+    if (dto.name !== undefined) {
+      await this.propagateNameToProducts(id, dto.name);
+    }
+
+    const updated = await this.collection().doc(id).get();
+    return toAdminCollection(id, updated.data() as CollectionDoc);
   }
 
   async delete(id: string): Promise<void> {
-    try {
-      await this.prisma.collection.delete({ where: { id } });
-    } catch (error) {
-      throw toFriendlyError(error, 'Coleção');
+    await assertDocExists(this.firestore.db, 'collections', id, 'Coleção');
+    await assertNotReferencedByProducts(this.firestore.db, 'collection.slug', id, 'Coleção');
+    await this.collection().doc(id).delete();
+  }
+
+  private async propagateNameToProducts(collectionSlug: string, name: string): Promise<void> {
+    const snapshot = await this.firestore.db
+      .collection('products')
+      .where('collection.slug', '==', collectionSlug)
+      .get();
+    if (snapshot.empty) return;
+
+    const batch = this.firestore.db.batch();
+    for (const doc of snapshot.docs) {
+      batch.set(doc.ref, { collection: { slug: collectionSlug, name } }, { merge: true });
     }
+    await batch.commit();
   }
 }

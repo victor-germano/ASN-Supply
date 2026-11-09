@@ -1,59 +1,66 @@
 import { Injectable } from '@nestjs/common';
-import type { AdminDashboardStats } from '@asn/types';
+import type { Timestamp } from 'firebase-admin/firestore';
+import type { AdminDashboardStats, OrderStatus } from '@asn/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { FirestoreService } from '../firestore/firestore.service';
 import { toMoney } from '../../common/money.mapper';
-import { revenueStatusList } from './revenue-status';
+import { isRevenueStatus } from './revenue-status';
 
 const RECENT_ORDERS_LIMIT = 5;
 
+interface OrderDoc {
+  code: string;
+  status: OrderStatus;
+  totalInCents: number;
+  guestName: string;
+  createdAt: Timestamp;
+}
+
+/**
+ * `totalCustomers` continua no Postgres (User só migra numa fase futura);
+ * o resto (Order, Product) migrou pro Firestore na Fase 3 — ver
+ * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md.
+ */
 @Injectable()
 export class AdminDashboardRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly firestore: FirestoreService,
+  ) {}
 
-  /**
-   * Todas as agregações rodam em paralelo — nenhuma depende do resultado
-   * de outra, e cada uma já é uma query enxuta (`count`/`aggregate`/`select`
-   * limitado), sem trazer as tabelas inteiras pra somar no Node.
-   */
   async getStats(): Promise<AdminDashboardStats> {
-    const [revenueResult, totalOrders, pendingOrders, totalCustomers, totalProducts, recent] =
-      await Promise.all([
-        this.prisma.order.aggregate({
-          _sum: { totalInCents: true },
-          where: { status: { in: revenueStatusList() } },
-        }),
-        this.prisma.order.count(),
-        this.prisma.order.count({ where: { status: 'PENDING_PAYMENT' } }),
-        this.prisma.user.count({ where: { role: 'CUSTOMER' } }),
-        this.prisma.product.count({ where: { isPublished: true } }),
-        this.prisma.order.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: RECENT_ORDERS_LIMIT,
-          select: {
-            id: true,
-            code: true,
-            status: true,
-            totalInCents: true,
-            guestName: true,
-            createdAt: true,
-          },
-        }),
-      ]);
+    const [ordersSnapshot, totalProductsCount, totalCustomers] = await Promise.all([
+      this.firestore.db.collection('orders').get(),
+      this.firestore.db.collection('products').where('isPublished', '==', true).count().get(),
+      this.prisma.user.count({ where: { role: 'CUSTOMER' } }),
+    ]);
+
+    const orders = ordersSnapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() as OrderDoc }));
+
+    const revenue = orders
+      .filter((order) => isRevenueStatus(order.data.status))
+      .reduce((sum, order) => sum + order.data.totalInCents, 0);
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter((order) => order.data.status === 'PENDING_PAYMENT').length;
+    const recentOrders = orders
+      .sort((a, b) => b.data.createdAt.toMillis() - a.data.createdAt.toMillis())
+      .slice(0, RECENT_ORDERS_LIMIT)
+      .map((order) => ({
+        id: order.id,
+        code: order.data.code,
+        status: order.data.status,
+        total: toMoney(order.data.totalInCents),
+        guestName: order.data.guestName,
+        createdAt: order.data.createdAt.toDate().toISOString(),
+      }));
 
     return {
-      revenue: toMoney(revenueResult._sum.totalInCents ?? 0),
+      revenue: toMoney(revenue),
       totalOrders,
       pendingOrders,
       totalCustomers,
-      totalProducts,
-      recentOrders: recent.map((order) => ({
-        id: order.id,
-        code: order.code,
-        status: order.status,
-        total: toMoney(order.totalInCents),
-        guestName: order.guestName,
-        createdAt: order.createdAt.toISOString(),
-      })),
+      totalProducts: totalProductsCount.data().count,
+      recentOrders,
     };
   }
 }

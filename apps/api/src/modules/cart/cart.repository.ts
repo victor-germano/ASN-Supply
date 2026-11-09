@@ -1,105 +1,142 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../generated/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { toMoney } from '../../common/money.mapper';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { CartItem } from '@asn/types';
+import { FirestoreService } from '../firestore/firestore.service';
+import { parseGlobalVariantId } from '../../common/variant-id';
 
-const itemInclude = {
-  variant: {
-    include: {
-      product: {
-        include: {
-          images: { where: { is360Frame: false }, take: 1, orderBy: { position: 'asc' } },
-        },
-      },
-    },
-  },
-} satisfies Prisma.CartItemInclude;
+interface CartItemDoc {
+  productSlug: string;
+  localVariantId: string;
+  quantity: number;
+  addedAt: Timestamp;
+}
 
-type CartItemWithRelations = Prisma.CartItemGetPayload<{ include: typeof itemInclude }>;
+/** Sem `slug`: o id do documento já É o slug — nunca duplicado como campo (ver `AdminProductsRepository`). */
+interface ProductDoc {
+  name: string;
+  priceInCents: number;
+  isPublished: boolean;
+}
 
-function toCartItem(row: CartItemWithRelations): CartItem {
-  const unitPriceInCents = row.variant.priceOverrideInCents ?? row.variant.product.priceInCents;
-  return {
-    id: row.id,
-    productId: row.variant.productId,
-    variantId: row.variantId,
-    productName: row.variant.product.name,
-    productSlug: row.variant.product.slug,
-    imageUrl: row.variant.product.images[0]?.url ?? '',
-    size: row.variant.size,
-    colorName: row.variant.colorName,
-    quantity: row.quantity,
-    unitPrice: toMoney(unitPriceInCents),
-    subtotal: toMoney(unitPriceInCents * row.quantity),
-  };
+interface ImageDoc {
+  url: string;
+  position: number;
+  is360Frame: boolean;
+}
+
+interface VariantDoc {
+  size: string;
+  colorName: string;
+  priceOverrideInCents: number | null;
 }
 
 /**
- * Acesso cru ao model `Cart`/`CartItem` — 1 carrinho por usuário
- * (`Cart.userId @unique`), criado sob demanda no primeiro item, nunca
- * antecipadamente no registro (a maioria das contas nunca chega a ter
- * carrinho salvo — criar cedo demais só seria linha morta no banco).
+ * `carts/{userId}` nunca precisa existir como documento — a subcoleção
+ * `items` já usa `userId` como chave natural (1 carrinho por usuário, como
+ * `Cart.userId @unique` no Postgres), então não há nada pra criar "sob
+ * demanda" além do primeiro item em si.
  */
 @Injectable()
 export class CartRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
-  async findItemsForUser(userId: string): Promise<CartItem[]> {
-    const cart = await this.prisma.cart.findUnique({
-      where: { userId },
-      include: { items: { include: itemInclude, orderBy: { addedAt: 'asc' } } },
-    });
-    return (cart?.items ?? []).map(toCartItem);
+  private items(userId: string) {
+    return this.firestore.db.collection('carts').doc(userId).collection('items');
   }
 
-  private async findOrCreateCartId(userId: string): Promise<string> {
-    const cart = await this.prisma.cart.upsert({
-      where: { userId },
-      create: { userId },
-      update: {},
-      select: { id: true },
-    });
-    return cart.id;
+  async findItemsForUser(userId: string): Promise<CartItem[]> {
+    const snapshot = await this.items(userId).orderBy('addedAt', 'asc').get();
+    if (snapshot.empty) return [];
+
+    const entries = snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() as CartItemDoc }));
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        const productRef = this.firestore.db.collection('products').doc(entry.data.productSlug);
+        const [productSnap, variantSnap, imagesSnap] = await Promise.all([
+          productRef.get(),
+          productRef.collection('variants').doc(entry.data.localVariantId).get(),
+          productRef.collection('images').orderBy('position', 'asc').limit(1).get(),
+        ]);
+        // Produto/variante removidos do catálogo depois de adicionados ao
+        // carrinho — omitido em vez de quebrar a listagem inteira (mesmo
+        // espírito de `withImages` no catálogo).
+        if (!productSnap.exists || !variantSnap.exists) return null;
+
+        const product = productSnap.data() as ProductDoc;
+        const variant = variantSnap.data() as VariantDoc;
+        const primaryImage = imagesSnap.docs[0]?.data() as ImageDoc | undefined;
+        const unitPriceInCents = variant.priceOverrideInCents ?? product.priceInCents;
+
+        const item: CartItem = {
+          id: entry.id,
+          productId: entry.data.productSlug,
+          variantId: entry.id,
+          productName: product.name,
+          productSlug: entry.data.productSlug,
+          imageUrl: primaryImage?.url ?? '',
+          size: variant.size,
+          colorName: variant.colorName,
+          quantity: entry.data.quantity,
+          unitPrice: { amountInCents: unitPriceInCents, currency: 'BRL' },
+          subtotal: { amountInCents: unitPriceInCents * entry.data.quantity, currency: 'BRL' },
+        };
+        return item;
+      }),
+    );
+
+    return results.filter((item): item is CartItem => item !== null);
   }
 
   /** `quantity <= 0` remove o item — mesma semântica de `setQuantity` no `cartStore` do web. */
   async setItemQuantity(userId: string, variantId: string, quantity: number): Promise<void> {
-    const cartId = await this.findOrCreateCartId(userId);
+    const ref = this.items(userId).doc(variantId);
     if (quantity <= 0) {
-      await this.prisma.cartItem.deleteMany({ where: { cartId, variantId } });
+      await ref.delete();
       return;
     }
-    // `CartItem.productId` é campo próprio (não derivado de `variant` em
-    // runtime) — precisa ser lido daqui antes do upsert. `variantId`
-    // inventado (ex: sync de um item removido do catálogo) vira 404 já
-    // aqui, não uma violação de FK solta no upsert abaixo.
-    const variant = await this.prisma.productVariant.findUnique({
-      where: { id: variantId },
-      select: { productId: true },
-    });
-    if (!variant) {
+
+    const parsed = parseGlobalVariantId(variantId);
+    if (!parsed) {
       throw new NotFoundException({
         errorCode: 'VARIANT_NOT_FOUND',
         message: 'Variante de produto não encontrada.',
       });
     }
-    await this.prisma.cartItem.upsert({
-      where: { cartId_variantId: { cartId, variantId } },
-      create: { cartId, variantId, quantity, productId: variant.productId },
-      update: { quantity },
-    });
+    const variantSnap = await this.firestore.db
+      .collection('products')
+      .doc(parsed.productSlug)
+      .collection('variants')
+      .doc(parsed.localVariantId)
+      .get();
+    if (!variantSnap.exists) {
+      throw new NotFoundException({
+        errorCode: 'VARIANT_NOT_FOUND',
+        message: 'Variante de produto não encontrada.',
+      });
+    }
+
+    const existing = await ref.get();
+    if (existing.exists) {
+      await ref.update({ quantity });
+    } else {
+      await ref.set({
+        productSlug: parsed.productSlug,
+        localVariantId: parsed.localVariantId,
+        quantity,
+        addedAt: Timestamp.now(),
+      } satisfies CartItemDoc);
+    }
   }
 
   async removeItem(userId: string, variantId: string): Promise<void> {
-    const cart = await this.prisma.cart.findUnique({ where: { userId }, select: { id: true } });
-    if (!cart) return;
-    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id, variantId } });
+    await this.items(userId).doc(variantId).delete();
   }
 
   async clear(userId: string): Promise<void> {
-    const cart = await this.prisma.cart.findUnique({ where: { userId }, select: { id: true } });
-    if (!cart) return;
-    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    const snapshot = await this.items(userId).get();
+    if (snapshot.empty) return;
+    const batch = this.firestore.db.batch();
+    for (const doc of snapshot.docs) batch.delete(doc.ref);
+    await batch.commit();
   }
 }

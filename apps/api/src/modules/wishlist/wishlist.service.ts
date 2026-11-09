@@ -1,31 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../generated/client';
+import { FirestoreService } from '../firestore/firestore.service';
 import { WishlistRepository } from './wishlist.repository';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly repository: WishlistRepository) {}
+  constructor(
+    private readonly repository: WishlistRepository,
+    private readonly firestore: FirestoreService,
+  ) {}
 
   findAllForUser(userId: string): Promise<string[]> {
     return this.repository.findProductIdsByUserId(userId);
   }
 
+  /**
+   * `productId` (slug do Firestore) checado explicitamente aqui — a FK do
+   * Postgres que fazia essa validação sozinha (P2003 em `productId`
+   * inexistente) foi removida junto com a migração de Product pro Firestore
+   * (ver C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md).
+   */
   async add(userId: string, productId: string): Promise<void> {
-    try {
-      await this.repository.add(userId, productId);
-    } catch (error) {
-      // P2003 = violação de foreign key — `productId` não existe (id
-      // inventado/produto removido). 404 é mais correto que deixar vazar
-      // como 500: o cliente mandou uma referência inválida, não caiu um
-      // erro interno.
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new NotFoundException({
-          errorCode: 'PRODUCT_NOT_FOUND',
-          message: 'Produto não encontrado.',
-        });
-      }
-      throw error;
+    const snap = await this.firestore.db.collection('products').doc(productId).get();
+    if (!snap.exists) {
+      throw new NotFoundException({
+        errorCode: 'PRODUCT_NOT_FOUND',
+        message: 'Produto não encontrado.',
+      });
     }
+    await this.repository.add(userId, productId);
   }
 
   remove(userId: string, productId: string): Promise<void> {

@@ -1,4 +1,40 @@
-import type { Coupon } from '../../../generated/client';
+import type { Timestamp } from 'firebase-admin/firestore';
+
+export interface CouponRecord {
+  code: string;
+  percentageOff: number | null;
+  amountOffInCents: number | null;
+  minOrderInCents: number | null;
+  expiresAt: Date | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  isActive: boolean;
+}
+
+/** Shape bruto do documento `coupons/{codeNormalizado}` no Firestore. */
+export interface CouponDoc {
+  code: string;
+  percentageOff: number | null;
+  amountOffInCents: number | null;
+  minOrderInCents: number | null;
+  expiresAt: Timestamp | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  isActive: boolean;
+}
+
+export function couponDocToRecord(doc: CouponDoc): CouponRecord {
+  return {
+    code: doc.code,
+    percentageOff: doc.percentageOff,
+    amountOffInCents: doc.amountOffInCents,
+    minOrderInCents: doc.minOrderInCents,
+    expiresAt: doc.expiresAt?.toDate() ?? null,
+    maxRedemptions: doc.maxRedemptions,
+    redemptionCount: doc.redemptionCount,
+    isActive: doc.isActive,
+  };
+}
 
 export interface CouponValidationError {
   errorCode: string;
@@ -6,14 +42,13 @@ export interface CouponValidationError {
 }
 
 /**
- * Puramente funcional (sem Prisma) de propósito — usado tanto pelo preview
- * (`CouponsService.preview`, fora de transação) quanto pela aplicação real
- * dentro da transação de `OrdersRepository.create` (`tx.coupon...`), que
- * não pode depender de um repositório amarrado ao client `prisma` padrão.
- * `null` = válido.
+ * Puramente funcional (sem Firestore/Prisma) de propósito — usado tanto pelo
+ * preview (`CouponsService.preview`, fora de transação) quanto pela
+ * aplicação real dentro da transação de `OrdersRepository.create`. `null` =
+ * válido.
  */
 export function validateCoupon(
-  coupon: Coupon | null,
+  coupon: CouponRecord | null,
   subtotalInCents: number,
 ): CouponValidationError | null {
   if (!coupon) {
@@ -38,7 +73,10 @@ export function validateCoupon(
 }
 
 /** Nunca desconta mais que o próprio subtotal (evita total negativo com um `amountOffInCents` alto). */
-export function calculateCouponDiscountInCents(coupon: Coupon, subtotalInCents: number): number {
+export function calculateCouponDiscountInCents(
+  coupon: CouponRecord,
+  subtotalInCents: number,
+): number {
   const raw =
     coupon.percentageOff !== null
       ? Math.round((subtotalInCents * coupon.percentageOff) / 100)

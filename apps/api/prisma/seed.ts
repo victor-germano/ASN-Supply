@@ -18,9 +18,17 @@
  * para produção.
  */
 import bcrypt from 'bcryptjs';
+import { Timestamp } from 'firebase-admin/firestore';
 import { PrismaClient } from '../generated/client';
+import { getDb } from '../src/config/firebase-admin';
+import { AlgoliaService, type AlgoliaProductRecord } from '../src/modules/algolia/algolia.service';
 
 const prisma = new PrismaClient();
+const db = getDb();
+// `AlgoliaService` não depende de DI do Nest (só lê env var no construtor)
+// — reaproveitado direto aqui, fora do contexto do Nest, como os outros
+// scripts standalone já fazem com `getDb()`.
+const algolia = new AlgoliaService();
 
 // Mesmo custo usado em `AuthService` (`BCRYPT_ROUNDS`) — não importado
 // direto porque o seed não depende do resto da API, só do Prisma.
@@ -56,37 +64,63 @@ function art(index: number): string {
   return `/seed-art/art-${String(n).padStart(2, '0')}.svg`;
 }
 
+/** Apaga todos os documentos de uma coleção (sem recursão pras subcoleções — cada chamador já sabe quais subcoleções tem e as apaga à parte). */
+async function deleteAllDocs(ref: FirebaseFirestore.CollectionReference): Promise<void> {
+  const snapshot = await ref.get();
+  if (snapshot.empty) return;
+  const batches: FirebaseFirestore.WriteBatch[] = [];
+  let batch = db.batch();
+  snapshot.docs.forEach((doc, index) => {
+    batch.delete(doc.ref);
+    if ((index + 1) % 450 === 0) {
+      batches.push(batch);
+      batch = db.batch();
+    }
+  });
+  batches.push(batch);
+  await Promise.all(batches.map((b) => b.commit()));
+}
+
+/** Apaga um documento + todas as subcoleções nomeadas (produtos têm 4: images, variants, lookItems, questions). */
+async function deleteDocsWithSubcollections(
+  collectionName: string,
+  subcollectionNames: string[],
+): Promise<void> {
+  const snapshot = await db.collection(collectionName).get();
+  for (const doc of snapshot.docs) {
+    for (const sub of subcollectionNames) {
+      await deleteAllDocs(doc.ref.collection(sub));
+    }
+  }
+  await deleteAllDocs(db.collection(collectionName));
+}
+
 async function resetCatalogData(): Promise<void> {
-  // Ordem respeita as foreign keys (dependentes primeiro).
+  // Postgres — só o que continua lá (Review tem `productId` solto desde a
+  // Fase 3 da migração pro Firestore, ver plano, mas as reviews em si ainda
+  // são Postgres).
   await prisma.wishlistItem.deleteMany();
   await prisma.review.deleteMany();
-  await prisma.productQuestion.deleteMany();
-  await prisma.cartItem.deleteMany();
-  // Apaga Order antes de OrderItem: a relação Order -> OrderItem (e Order ->
-  // Payment) já é `onDelete: Cascade`, então isto também limpa OrderItem e
-  // Payment. Sem isto, pedidos de teste do checkout (Módulo 4, guest —
-  // `userId`/`addressId` nulos, nada prende o Order ao resto do catálogo)
-  // ficavam órfãos no banco a cada rodada do seed em vez de serem
-  // reseedados junto com o resto.
-  await prisma.order.deleteMany();
-  await prisma.orderItem.deleteMany();
-  await prisma.productImage.deleteMany();
-  await prisma.productVariant.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.collection.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.brand.deleteMany();
-  await prisma.banner.deleteMany();
-  await prisma.socialPost.deleteMany();
   // Só os "reviewers" de demonstração — reseedados a cada rodada junto com
   // as reviews que os referenciam. Restrito ao domínio fictício usado em
   // `seedReviewers` (@example.com): um `deleteMany()` sem filtro apagaria
   // qualquer conta real criada fora deste script (Módulo 5 em diante) toda
   // vez que o seed rodasse de novo.
   await prisma.user.deleteMany({ where: { email: { endsWith: '@example.com' } } });
-  // Só o cupom fixo de e2e — nunca um `deleteMany()` sem filtro, que
-  // apagaria cupons reais criados fora deste script.
-  await prisma.coupon.deleteMany({ where: { code: E2E_COUPON_CODE } });
+
+  // Firestore — catálogo, carrinho, pedido e cupom, migrados na Fase 3.
+  await deleteDocsWithSubcollections('products', ['images', 'variants', 'lookItems', 'questions']);
+  await deleteAllDocs(db.collection('brands'));
+  await deleteAllDocs(db.collection('categories'));
+  await deleteAllDocs(db.collection('collections'));
+  await deleteDocsWithSubcollections('orders', ['items']);
+  await deleteAllDocs(db.collection('orderCodes'));
+  await deleteDocsWithSubcollections('carts', ['items']);
+  // Só o cupom fixo de e2e — nunca apagar a coleção inteira, que poderia
+  // conter cupons reais criados fora deste script.
+  await db.collection('coupons').doc(E2E_COUPON_CODE).delete();
+  await deleteAllDocs(db.collection('banners'));
+  await deleteAllDocs(db.collection('socialPosts'));
 }
 
 /** Contas admin (e2e e demonstração) + cupom fixos — ver comentários no topo do arquivo. */
@@ -101,12 +135,15 @@ async function seedE2EFixtures(): Promise<void> {
       emailVerifiedAt: new Date(),
     },
   });
-  await prisma.coupon.create({
-    data: {
-      code: E2E_COUPON_CODE,
-      percentageOff: 10,
-      isActive: true,
-    },
+  await db.collection('coupons').doc(E2E_COUPON_CODE).set({
+    code: E2E_COUPON_CODE,
+    percentageOff: 10,
+    amountOffInCents: null,
+    minOrderInCents: null,
+    expiresAt: null,
+    maxRedemptions: null,
+    redemptionCount: 0,
+    isActive: true,
   });
   await prisma.user.create({
     data: {
@@ -120,132 +157,154 @@ async function seedE2EFixtures(): Promise<void> {
 }
 
 async function seedBrands() {
-  return Promise.all([
-    prisma.brand.create({ data: { name: 'Nova Court', slug: 'nova-court' } }),
-    prisma.brand.create({ data: { name: 'Terra Runner', slug: 'terra-runner' } }),
-    prisma.brand.create({ data: { name: 'Aster Studio', slug: 'aster-studio' } }),
-    prisma.brand.create({ data: { name: 'Marrow Atelier', slug: 'marrow-atelier' } }),
-  ]);
+  const brands = [
+    { name: 'Nova Court', slug: 'nova-court' },
+    { name: 'Terra Runner', slug: 'terra-runner' },
+    { name: 'Aster Studio', slug: 'aster-studio' },
+    { name: 'Marrow Atelier', slug: 'marrow-atelier' },
+  ];
+  await Promise.all(
+    brands.map((brand) =>
+      db
+        .collection('brands')
+        .doc(brand.slug)
+        .set({ ...brand, logoUrl: null }),
+    ),
+  );
+  return brands;
 }
 
 async function seedCategories() {
-  return Promise.all([
-    prisma.category.create({
-      data: {
-        name: 'Casual',
-        slug: 'casual',
-        imageUrl: art(0),
-        imageAlt: 'Tênis casual off-white sobre fundo neutro',
-      },
-    }),
-    prisma.category.create({
-      data: {
-        name: 'Corrida',
-        slug: 'corrida',
-        imageUrl: art(11),
-        imageAlt: 'Tênis de corrida em ambiente urbano',
-      },
-    }),
-    prisma.category.create({
-      data: {
-        name: 'Skate',
-        slug: 'skate',
-        imageUrl: art(6),
-        imageAlt: 'Tênis de skate visto de perfil',
-      },
-    }),
-    prisma.category.create({
-      data: {
-        name: 'Basquete',
-        slug: 'basquete',
-        imageUrl: art(7),
-        imageAlt: 'Tênis de cano alto para basquete',
-      },
-    }),
-  ]);
+  const categories = [
+    {
+      name: 'Casual',
+      slug: 'casual',
+      parentId: null,
+      imageUrl: art(0),
+      imageAlt: 'Tênis casual off-white sobre fundo neutro',
+    },
+    {
+      name: 'Corrida',
+      slug: 'corrida',
+      parentId: null,
+      imageUrl: art(11),
+      imageAlt: 'Tênis de corrida em ambiente urbano',
+    },
+    {
+      name: 'Skate',
+      slug: 'skate',
+      parentId: null,
+      imageUrl: art(6),
+      imageAlt: 'Tênis de skate visto de perfil',
+    },
+    {
+      name: 'Basquete',
+      slug: 'basquete',
+      parentId: null,
+      imageUrl: art(7),
+      imageAlt: 'Tênis de cano alto para basquete',
+    },
+  ];
+  await Promise.all(
+    categories.map((category) => db.collection('categories').doc(category.slug).set(category)),
+  );
+  return categories;
 }
 
 async function seedCollections() {
-  return Promise.all([
-    prisma.collection.create({
-      data: {
-        name: 'Studio 001',
-        slug: 'studio-001',
-        description:
-          'A primeira cápsula da casa: silhuetas limpas, paleta neutra e construção minimalista — pensada para durar além da estação.',
-        coverImageUrl: art(0),
-        coverImageAlt: 'Composição de tênis Studio 001 em estúdio',
-        launchedAt: new Date('2026-05-01'),
-      },
-    }),
-    prisma.collection.create({
-      data: {
-        name: 'Terra Collection',
-        slug: 'terra-collection',
-        description:
-          'Desenvolvida para performance ao ar livre sem abrir mão de identidade — solados robustos, tons terrosos, acabamento técnico.',
-        coverImageUrl: art(11),
-        coverImageAlt: 'Tênis de trilha Terra Collection em ambiente externo',
-        launchedAt: new Date('2026-03-10'),
-      },
-    }),
-    prisma.collection.create({
-      data: {
-        name: 'Nightwalk',
-        slug: 'nightwalk',
-        description:
-          'Edição de cano alto em couro premium e detalhes refletivos — feita para a cidade depois que o sol se põe.',
-        coverImageUrl: art(13),
-        coverImageAlt: 'Tênis de cano alto Nightwalk em cenário urbano noturno',
-        launchedAt: new Date('2026-07-20'),
-      },
-    }),
-  ]);
+  const collections = [
+    {
+      name: 'Studio 001',
+      slug: 'studio-001',
+      description:
+        'A primeira cápsula da casa: silhuetas limpas, paleta neutra e construção minimalista — pensada para durar além da estação.',
+      coverImageUrl: art(0),
+      coverImageAlt: 'Composição de tênis Studio 001 em estúdio',
+      launchedAt: Timestamp.fromDate(new Date('2026-05-01')),
+    },
+    {
+      name: 'Terra Collection',
+      slug: 'terra-collection',
+      description:
+        'Desenvolvida para performance ao ar livre sem abrir mão de identidade — solados robustos, tons terrosos, acabamento técnico.',
+      coverImageUrl: art(11),
+      coverImageAlt: 'Tênis de trilha Terra Collection em ambiente externo',
+      launchedAt: Timestamp.fromDate(new Date('2026-03-10')),
+    },
+    {
+      name: 'Nightwalk',
+      slug: 'nightwalk',
+      description:
+        'Edição de cano alto em couro premium e detalhes refletivos — feita para a cidade depois que o sol se põe.',
+      coverImageUrl: art(13),
+      coverImageAlt: 'Tênis de cano alto Nightwalk em cenário urbano noturno',
+      launchedAt: Timestamp.fromDate(new Date('2026-07-20')),
+    },
+  ];
+  await Promise.all(
+    collections.map((collection) =>
+      db.collection('collections').doc(collection.slug).set(collection),
+    ),
+  );
+  return collections;
 }
 
 async function seedBanners() {
-  await prisma.banner.createMany({
-    data: [
-      {
-        title: 'Nightwalk chegou',
-        subtitle: 'Cano alto, couro premium e detalhes refletivos — a nova edição da casa.',
-        ctaLabel: 'Ver coleção',
-        ctaHref: '/colecoes/nightwalk',
-        imageUrlDesktop: art(13),
-        imageUrlMobile: art(13),
-        position: 0,
-      },
-      {
-        title: 'Studio 001',
-        subtitle: 'Silhuetas limpas, paleta neutra. A cápsula que abre a temporada.',
-        ctaLabel: 'Explorar cápsula',
-        ctaHref: '/colecoes/studio-001',
-        imageUrlDesktop: art(0),
-        imageUrlMobile: art(0),
-        position: 1,
-      },
-      {
-        title: 'Terra Collection',
-        subtitle: 'Performance ao ar livre, identidade urbana.',
-        ctaLabel: 'Ver lançamentos',
-        ctaHref: '/colecoes/terra-collection',
-        imageUrlDesktop: art(11),
-        imageUrlMobile: art(11),
-        position: 2,
-      },
-    ],
-  });
+  const banners = [
+    {
+      title: 'Nightwalk chegou',
+      subtitle: 'Cano alto, couro premium e detalhes refletivos — a nova edição da casa.',
+      ctaLabel: 'Ver coleção',
+      ctaHref: '/colecoes/nightwalk',
+      imageUrlDesktop: art(13),
+      imageUrlMobile: art(13),
+      position: 0,
+      isActive: true,
+      startsAt: null,
+      endsAt: null,
+    },
+    {
+      title: 'Studio 001',
+      subtitle: 'Silhuetas limpas, paleta neutra. A cápsula que abre a temporada.',
+      ctaLabel: 'Explorar cápsula',
+      ctaHref: '/colecoes/studio-001',
+      imageUrlDesktop: art(0),
+      imageUrlMobile: art(0),
+      position: 1,
+      isActive: true,
+      startsAt: null,
+      endsAt: null,
+    },
+    {
+      title: 'Terra Collection',
+      subtitle: 'Performance ao ar livre, identidade urbana.',
+      ctaLabel: 'Ver lançamentos',
+      ctaHref: '/colecoes/terra-collection',
+      imageUrlDesktop: art(11),
+      imageUrlMobile: art(11),
+      position: 2,
+      isActive: true,
+      startsAt: null,
+      endsAt: null,
+    },
+  ];
+  const batch = db.batch();
+  for (const banner of banners) batch.set(db.collection('banners').doc(), banner);
+  await batch.commit();
 }
 
 async function seedSocialPosts() {
-  await prisma.socialPost.createMany({
-    data: Array.from({ length: 6 }, (_, index) => ({
+  const batch = db.batch();
+  for (let index = 0; index < 6; index += 1) {
+    batch.set(db.collection('socialPosts').doc(), {
       imageUrl: art(index + 2),
       permalink: 'https://instagram.com/asnsupply',
       caption: null,
       position: index,
-    })),
-  });
+      isActive: true,
+    });
+  }
+  await batch.commit();
 }
 
 interface ProductSeed {
@@ -736,6 +795,16 @@ const SIZES = ['38', '39', '40', '41', '42', '43', '44'];
 /** Slug do produto que ganha uma sequência de giro 360° de demonstração (não temos fotografia rotacionada real ainda). */
 const PRODUCT_WITH_360_VIEW = 'marrow-atelier-edicao-especial';
 
+function seedSlugify(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 async function seedProducts(
   brands: Awaited<ReturnType<typeof seedBrands>>,
   categories: Awaited<ReturnType<typeof seedCategories>>,
@@ -756,11 +825,13 @@ async function seedProducts(
 
     const variantsData = seed.colors.flatMap((color) =>
       SIZES.map((size) => ({
-        sku: `${seed.slug}-${color.name.toLowerCase().replace(/\s+/g, '-')}-${size}`,
+        localId: `${seedSlugify(color.name)}_${seedSlugify(size)}`,
+        sku: `${seed.slug}-${seedSlugify(color.name)}-${seedSlugify(size)}`,
         size,
         colorName: color.name,
         colorHex: color.hex,
         stockQuantity: 5 + Math.floor(Math.random() * 20),
+        priceOverrideInCents: null as number | null,
       })),
     );
 
@@ -772,6 +843,7 @@ async function seedProducts(
         height: 1500,
         position: 0,
         isHoverImage: false,
+        is360Frame: false,
       },
       ...(seed.hoverPhotoIndex !== undefined
         ? [
@@ -782,6 +854,7 @@ async function seedProducts(
               height: 1500,
               position: 1,
               isHoverImage: true,
+              is360Frame: false,
             },
           ]
         : []),
@@ -795,33 +868,76 @@ async function seedProducts(
           width: 1200,
           height: 1500,
           position: frameIndex,
+          isHoverImage: false,
           is360Frame: true,
         }))
       : [];
 
-    const product = await prisma.product.create({
-      data: {
-        slug: seed.slug,
-        name: seed.name,
-        description: seed.description,
-        materials: seed.materials,
-        technologies: seed.technologies,
-        gender: seed.gender,
-        priceInCents: seed.priceInCents,
-        compareAtPriceInCents: seed.compareAtPriceInCents,
-        isNewArrival: seed.isNewArrival,
-        isBestSeller: seed.isBestSeller,
-        has360View,
-        isPublished: true,
-        publishedAt: new Date(),
-        brandId: brand.id,
-        categoryId: category.id,
-        collectionId: collection?.id,
-        images: { create: [...imagesData, ...framesData] },
-        variants: { create: variantsData },
-      },
-    });
-    createdProducts.push({ id: product.id, slug: product.slug });
+    const now = Timestamp.now();
+    const productDoc = {
+      name: seed.name,
+      description: seed.description,
+      materials: seed.materials,
+      technologies: seed.technologies,
+      gender: seed.gender,
+      priceInCents: seed.priceInCents,
+      compareAtPriceInCents: seed.compareAtPriceInCents ?? null,
+      videoUrl: null,
+      has360View,
+      isNewArrival: seed.isNewArrival,
+      isBestSeller: seed.isBestSeller,
+      isPublished: true,
+      publishedAt: now,
+      sizeGuideId: null,
+      averageRating: null,
+      reviewCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      brand: { slug: brand.slug, name: brand.name },
+      category: { slug: category.slug, name: category.name },
+      collection: collection ? { slug: collection.slug, name: collection.name } : null,
+    };
+
+    const productRef = db.collection('products').doc(seed.slug);
+    const batch = db.batch();
+    batch.set(productRef, productDoc);
+    for (const image of [...imagesData, ...framesData]) {
+      batch.set(productRef.collection('images').doc(), image);
+    }
+    for (const variant of variantsData) {
+      const { localId, ...variantDoc } = variant;
+      batch.set(productRef.collection('variants').doc(localId), variantDoc);
+    }
+    await batch.commit();
+
+    const colorNames = new Set(seed.colors.map((c) => c.name));
+    const record: AlgoliaProductRecord = {
+      objectID: seed.slug,
+      name: seed.name,
+      description: seed.description,
+      brand: { id: brand.slug, name: brand.name, slug: brand.slug },
+      category: { id: category.slug, name: category.name, slug: category.slug },
+      collection: collection
+        ? { id: collection.slug, name: collection.name, slug: collection.slug }
+        : null,
+      gender: seed.gender,
+      priceInCents: seed.priceInCents,
+      compareAtPriceInCents: seed.compareAtPriceInCents ?? null,
+      primaryImage: { id: `${seed.slug}-img-0`, ...imagesData[0]! },
+      hoverImage: imagesData[1] ? { id: `${seed.slug}-img-1`, ...imagesData[1] } : null,
+      availableColors: colorNames.size,
+      isNewArrival: seed.isNewArrival,
+      isBestSeller: seed.isBestSeller,
+      averageRating: null,
+      reviewCount: 0,
+      colorNames: Array.from(colorNames),
+      colorFacets: seed.colors.map((c) => `${c.name}|${c.hex}`),
+      sizes: [...SIZES],
+      publishedAtMs: now.toMillis(),
+    };
+    await algolia.saveProduct(record);
+
+    createdProducts.push({ id: seed.slug, slug: seed.slug });
   }
 
   return createdProducts;
@@ -957,12 +1073,15 @@ async function seedReviewsAndQuestions(
       ) / 10;
 
     // Denormalização feita aqui, na escrita — é exatamente o padrão que o
-    // módulo de Avaliações real (fora do escopo do seed) precisa seguir
-    // sempre que uma review for criada, editada ou removida.
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { averageRating, reviewCount: selectedReviews.length },
-    });
+    // módulo de Avaliações real (`ReviewsRepository.create`) precisa seguir
+    // sempre que uma review for criada, editada ou removida. Product mora no
+    // Firestore desde a Fase 3 — o contador segue junto, assim como o
+    // espelho no Algolia (afeta a ordenação "Melhor avaliados").
+    await db
+      .collection('products')
+      .doc(product.slug)
+      .set({ averageRating, reviewCount: selectedReviews.length }, { merge: true });
+    await algolia.updateRating(product.slug, averageRating, selectedReviews.length);
   }
 
   for (const [productIndex, product] of productsWithQuestions.entries()) {
@@ -972,15 +1091,17 @@ async function seedReviewsAndQuestions(
       (_, i) => QUESTION_POOL[(productIndex + i) % QUESTION_POOL.length]!,
     );
 
-    await prisma.productQuestion.createMany({
-      data: selectedQuestions.map((question, i) => ({
-        productId: product.id,
+    const batch = db.batch();
+    selectedQuestions.forEach((question, i) => {
+      batch.set(db.collection('products').doc(product.slug).collection('questions').doc(), {
         askerName: ['Fernanda L.', 'Pedro H.', 'Ana Clara', 'Bruno S.'][i % 4]!,
         question: question.question,
         answer: question.answer,
-        answeredAt: question.answer ? new Date() : null,
-      })),
+        answeredAt: question.answer ? Timestamp.now() : null,
+        createdAt: Timestamp.now(),
+      });
     });
+    await batch.commit();
   }
 }
 
@@ -1003,7 +1124,12 @@ async function assertSafeToSeed(): Promise<void> {
     }
     return;
   }
-  const [products, orders] = await Promise.all([prisma.product.count(), prisma.order.count()]);
+  const [productsCount, ordersCount] = await Promise.all([
+    db.collection('products').count().get(),
+    db.collection('orders').count().get(),
+  ]);
+  const products = productsCount.data().count;
+  const orders = ordersCount.data().count;
   if (products > 0 || orders > 0) {
     throw new Error(
       `Este banco já tem dados (${products} produtos, ${orders} pedidos) — a carga inicial só roda num banco vazio e nunca apaga nada.`,
@@ -1056,4 +1182,7 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    // O SDK do Firebase Admin mantém o canal gRPC aberto — sem isto, o
+    // processo nunca terminaria sozinho depois do seed concluído.
+    process.exit(process.exitCode ?? 0);
   });

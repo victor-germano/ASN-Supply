@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '@asn/types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { FirestoreService } from '../firestore/firestore.service';
 import { TrackActivityDto } from './dto/track-activity.dto';
 
 /** Uma visualização do mesmo produto conta uma vez nesta janela (recarregar a página não gera linha nova). */
@@ -17,7 +18,10 @@ const VIEW_DEDUP_MINUTES = 30;
 @Controller({ path: 'me/activity', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class ActivityController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly firestore: FirestoreService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -26,11 +30,11 @@ export class ActivityController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: TrackActivityDto,
   ): Promise<void> {
-    const product = await this.prisma.product.findFirst({
-      where: { id: dto.productId, isPublished: true },
-      select: { id: true },
-    });
-    if (!product) return;
+    // `productId` é o slug do Firestore — Product saiu do Postgres na Fase 3
+    // da migração (ver plano), checagem de existência/publicação vai direto
+    // na nova fonte da verdade.
+    const snap = await this.firestore.db.collection('products').doc(dto.productId).get();
+    if (!snap.exists || !(snap.data() as { isPublished: boolean }).isPublished) return;
 
     if (dto.type === 'PRODUCT_VIEW') {
       const recent = await this.prisma.customerActivity.findFirst({

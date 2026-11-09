@@ -1,11 +1,16 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { CouponPreview } from '@asn/types';
-import { PrismaService } from '../prisma/prisma.service';
-import { calculateCouponDiscountInCents, validateCoupon } from '../orders/coupon';
+import { FirestoreService } from '../firestore/firestore.service';
+import {
+  calculateCouponDiscountInCents,
+  couponDocToRecord,
+  validateCoupon,
+  type CouponDoc,
+} from '../orders/coupon';
 
 @Injectable()
 export class CouponsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
   /**
    * Só um preview (não incrementa `redemptionCount`) — usado pelo checkout
@@ -17,9 +22,9 @@ export class CouponsService {
    * válido.
    */
   async preview(code: string, subtotalInCents: number): Promise<CouponPreview> {
-    const coupon = await this.prisma.coupon.findFirst({
-      where: { code: code.trim().toUpperCase() },
-    });
+    const snap = await this.firestore.db.collection('coupons').doc(code.trim().toUpperCase()).get();
+    const coupon = snap.exists ? couponDocToRecord(snap.data() as CouponDoc) : null;
+
     const error = validateCoupon(coupon, subtotalInCents);
     if (error) {
       throw new BadRequestException(error);

@@ -1,41 +1,53 @@
 import { Injectable } from '@nestjs/common';
+import type { Timestamp } from 'firebase-admin/firestore';
 import type { Collection } from '@asn/types';
-import { PrismaService } from '../../prisma/prisma.service';
-import type { Prisma } from '../../../../generated/client';
+import { FirestoreService } from '../../firestore/firestore.service';
+
+interface CollectionDoc {
+  name: string;
+  slug: string;
+  description: string;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  launchedAt: Timestamp | null;
+}
+
+function toCollection(id: string, doc: CollectionDoc): Collection {
+  return {
+    id,
+    name: doc.name,
+    slug: doc.slug,
+    description: doc.description,
+    coverImage:
+      doc.coverImageUrl && doc.coverImageAlt
+        ? { url: doc.coverImageUrl, alt: doc.coverImageAlt }
+        : null,
+    launchedAt: doc.launchedAt?.toDate().toISOString() ?? null,
+  };
+}
 
 @Injectable()
 export class CollectionsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
   /** Coleções já lançadas, mais recentes primeiro — usado na seção "Coleções" da Home. */
   async findLaunched(limit: number): Promise<Collection[]> {
-    const collections = await this.prisma.collection.findMany({
-      where: { launchedAt: { not: null } },
-      orderBy: { launchedAt: 'desc' },
-      take: limit,
-    });
+    const snapshot = await this.firestore.db.collection('collections').get();
 
-    return collections.map(toCollection);
+    return snapshot.docs
+      .map((doc) => ({ id: doc.id, data: doc.data() as CollectionDoc }))
+      .filter((entry) => entry.data.launchedAt !== null)
+      .sort((a, b) => b.data.launchedAt!.toMillis() - a.data.launchedAt!.toMillis())
+      .slice(0, limit)
+      .map((entry) => toCollection(entry.id, entry.data));
   }
 
   /** Usado pela página de coleção (`/colecoes/[slug]`) — `null` se não existir ou ainda não lançada. */
   async findBySlug(slug: string): Promise<Collection | null> {
-    const collection = await this.prisma.collection.findUnique({ where: { slug } });
-    if (!collection || collection.launchedAt === null) return null;
-    return toCollection(collection);
+    const snap = await this.firestore.db.collection('collections').doc(slug).get();
+    if (!snap.exists) return null;
+    const data = snap.data() as CollectionDoc;
+    if (data.launchedAt === null) return null;
+    return toCollection(snap.id, data);
   }
-}
-
-function toCollection(collection: Prisma.CollectionGetPayload<Record<string, never>>): Collection {
-  return {
-    id: collection.id,
-    name: collection.name,
-    slug: collection.slug,
-    description: collection.description,
-    coverImage:
-      collection.coverImageUrl && collection.coverImageAlt
-        ? { url: collection.coverImageUrl, alt: collection.coverImageAlt }
-        : null,
-    launchedAt: collection.launchedAt?.toISOString() ?? null,
-  };
 }

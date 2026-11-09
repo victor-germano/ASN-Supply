@@ -6,6 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { FirestoreModule } from './modules/firestore/firestore.module';
+import { AlgoliaModule } from './modules/algolia/algolia.module';
 import { HealthModule } from './modules/health/health.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
@@ -46,6 +47,7 @@ import { RecoveryModule } from './modules/recovery/recovery.module';
     ]),
     PrismaModule,
     FirestoreModule,
+    AlgoliaModule,
     HealthModule,
     CatalogModule,
     MarketingModule,

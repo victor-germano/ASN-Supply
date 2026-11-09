@@ -78,12 +78,18 @@ enum CustomerActivityType {
 
 /// O que um cliente LOGADO viu/escolheu — base do lembrete "sentimos sua
 /// falta" (ver `RecoveryReminderService`). Visitante anônimo nunca é rastreado.
+///
+/// `productId` sem `@relation` de propósito (migração Postgres→Firestore,
+/// ver C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md, seção 6
+/// do documento de design da Fase 3): Product saiu do Postgres nesta fase,
+/// então uma FK aqui bloquearia qualquer atividade sobre produto criado
+/// depois do corte. A existência do produto é checada contra o Firestore em
+/// `activity.controller.ts`, não mais garantida pelo banco.
 model CustomerActivity {
   id        String               @id @default(cuid())
   userId    String
   user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
-  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   type      CustomerActivityType
   createdAt DateTime             @default(now())
 
@@ -215,13 +221,10 @@ model Product {
 
   images        ProductImage[]
   variants      ProductVariant[]
-  reviews       Review[]
   questions     ProductQuestion[]
-  wishlistItems WishlistItem[]
   orderItems    OrderItem[]
   cartItems     CartItem[]
   lookItems     LookItem[]
-  activities    CustomerActivity[]
 
   @@index([brandId])
   @@index([categoryId])
@@ -295,10 +298,11 @@ model ProductVariant {
   @@map("product_variants")
 }
 
+/// `productId` sem `@relation` — mesmo motivo de `CustomerActivity.productId`
+/// (Product saiu do Postgres na Fase 3 da migração pro Firestore).
 model Review {
   id                 String   @id @default(cuid())
   productId          String
-  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   userId             String
   user               User     @relation(fields: [userId], references: [id])
   rating             Int
@@ -331,12 +335,13 @@ model ProductQuestion {
   @@map("product_questions")
 }
 
+/// `productId` sem `@relation` — mesmo motivo de `CustomerActivity.productId`
+/// (Product saiu do Postgres na Fase 3 da migração pro Firestore).
 model WishlistItem {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   addedAt   DateTime @default(now())
 
   @@unique([userId, productId])
