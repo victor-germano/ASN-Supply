@@ -56,6 +56,21 @@ const E2E_COUPON_CODE = 'E2E10';
 const DEMO_ADMIN_EMAIL = 'admin@example.com';
 const DEMO_ADMIN_PASSWORD = 'AsnAdmin2026!';
 
+/** Avaliadores fictícios (sem senha — nunca logam, só assinam reviews de demonstração). */
+const REVIEWER_SEEDS = [
+  { name: 'Marina Costa', email: 'marina.costa@example.com' },
+  { name: 'Rafael Andrade', email: 'rafael.andrade@example.com' },
+  { name: 'Juliana Prado', email: 'juliana.prado@example.com' },
+  { name: 'Lucas Ferreira', email: 'lucas.ferreira@example.com' },
+  { name: 'Beatriz Nunes', email: 'beatriz.nunes@example.com' },
+  { name: 'Thiago Mendes', email: 'thiago.mendes@example.com' },
+  { name: 'Camila Rocha', email: 'camila.rocha@example.com' },
+  { name: 'Diego Salles', email: 'diego.salles@example.com' },
+];
+
+/** Todo e-mail de conta fictícia que este seed cria — usado por `resetCatalogData` para limpar só essas, nunca a coleção `users` inteira. */
+const ALL_DEMO_EMAILS = [E2E_ADMIN_EMAIL, DEMO_ADMIN_EMAIL, ...REVIEWER_SEEDS.map((r) => r.email)];
+
 /** Pool de composições abstratas próprias (public/seed-art/art-01.svg .. art-08.svg em apps/web). */
 const ART_COUNT = 8;
 
@@ -81,7 +96,7 @@ async function deleteAllDocs(ref: FirebaseFirestore.CollectionReference): Promis
   await Promise.all(batches.map((b) => b.commit()));
 }
 
-/** Apaga um documento + todas as subcoleções nomeadas (produtos têm 4: images, variants, lookItems, questions). */
+/** Apaga um documento + todas as subcoleções nomeadas (produtos têm 5: images, variants, lookItems, questions, reviews). */
 async function deleteDocsWithSubcollections(
   collectionName: string,
   subcollectionNames: string[],
@@ -95,21 +110,43 @@ async function deleteDocsWithSubcollections(
   await deleteAllDocs(db.collection(collectionName));
 }
 
-async function resetCatalogData(): Promise<void> {
-  // Postgres — só o que continua lá (Review tem `productId` solto desde a
-  // Fase 3 da migração pro Firestore, ver plano, mas as reviews em si ainda
-  // são Postgres).
-  await prisma.wishlistItem.deleteMany();
-  await prisma.review.deleteMany();
-  // Só os "reviewers" de demonstração — reseedados a cada rodada junto com
-  // as reviews que os referenciam. Restrito ao domínio fictício usado em
-  // `seedReviewers` (@example.com): um `deleteMany()` sem filtro apagaria
-  // qualquer conta real criada fora deste script (Módulo 5 em diante) toda
-  // vez que o seed rodasse de novo.
-  await prisma.user.deleteMany({ where: { email: { endsWith: '@example.com' } } });
+/**
+ * Apaga só UMA conta de demonstração (doc + endereços + trava de e-mail) —
+ * nunca a coleção `users` inteira, que desde a Fase 4 também guarda contas
+ * reais de clientes de verdade. Resolvida pela trava `userEmails` (mesmo
+ * caminho de `UsersRepository.findByEmail`); e-mail sem trava = conta nunca
+ * existiu ou já foi apagada, no-op.
+ */
+async function deleteDemoUser(email: string): Promise<void> {
+  const emailLockRef = db.collection('userEmails').doc(email);
+  const lockSnap = await emailLockRef.get();
+  if (!lockSnap.exists) return;
 
-  // Firestore — catálogo, carrinho, pedido e cupom, migrados na Fase 3.
-  await deleteDocsWithSubcollections('products', ['images', 'variants', 'lookItems', 'questions']);
+  const userId = (lockSnap.data() as { userId: string }).userId;
+  const userRef = db.collection('users').doc(userId);
+  await deleteAllDocs(userRef.collection('addresses'));
+  await Promise.all([userRef.delete(), emailLockRef.delete()]);
+}
+
+async function resetCatalogData(): Promise<void> {
+  // Postgres — só o que continua lá (WishlistItem/CustomerActivity não
+  // migraram ainda; Review migrou pro Firestore na Fase 4, User também —
+  // ver plano).
+  await prisma.wishlistItem.deleteMany();
+
+  // Contas de demonstração (admins de e2e + avaliadores fictícios) —
+  // reseedadas a cada rodada junto com o que elas referenciam.
+  await Promise.all(ALL_DEMO_EMAILS.map((email) => deleteDemoUser(email)));
+
+  // Firestore — catálogo (+ reviews, migradas pro Firestore na Fase 4),
+  // carrinho, pedido e cupom.
+  await deleteDocsWithSubcollections('products', [
+    'images',
+    'variants',
+    'lookItems',
+    'questions',
+    'reviews',
+  ]);
   await deleteAllDocs(db.collection('brands'));
   await deleteAllDocs(db.collection('categories'));
   await deleteAllDocs(db.collection('collections'));
@@ -123,17 +160,44 @@ async function resetCatalogData(): Promise<void> {
   await deleteAllDocs(db.collection('socialPosts'));
 }
 
+/** Cria uma conta (User migrou pro Firestore na Fase 4 — mesma trava `userEmails` de `UsersRepository.create`). */
+async function seedUser(data: {
+  name: string;
+  email: string;
+  passwordHash: string | null;
+  role: 'CUSTOMER' | 'ADMIN';
+}): Promise<string> {
+  const userRef = db.collection('users').doc();
+  const now = Timestamp.now();
+  await db.runTransaction(async (tx) => {
+    tx.set(db.collection('userEmails').doc(data.email), { userId: userRef.id });
+    tx.set(userRef, {
+      name: data.name,
+      email: data.email,
+      passwordHash: data.passwordHash,
+      role: data.role,
+      avatarUrl: null,
+      googleId: null,
+      appleId: null,
+      emailVerifiedAt: now,
+      phone: null,
+      marketingOptIn: false,
+      marketingOptInAt: null,
+      termsAcceptedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  return userRef.id;
+}
+
 /** Contas admin (e2e e demonstração) + cupom fixos — ver comentários no topo do arquivo. */
 async function seedE2EFixtures(): Promise<void> {
-  const passwordHash = await bcrypt.hash(E2E_ADMIN_PASSWORD, BCRYPT_ROUNDS);
-  await prisma.user.create({
-    data: {
-      name: 'Admin E2E',
-      email: E2E_ADMIN_EMAIL,
-      passwordHash,
-      role: 'ADMIN',
-      emailVerifiedAt: new Date(),
-    },
+  await seedUser({
+    name: 'Admin E2E',
+    email: E2E_ADMIN_EMAIL,
+    passwordHash: await bcrypt.hash(E2E_ADMIN_PASSWORD, BCRYPT_ROUNDS),
+    role: 'ADMIN',
   });
   await db.collection('coupons').doc(E2E_COUPON_CODE).set({
     code: E2E_COUPON_CODE,
@@ -145,14 +209,11 @@ async function seedE2EFixtures(): Promise<void> {
     redemptionCount: 0,
     isActive: true,
   });
-  await prisma.user.create({
-    data: {
-      name: 'Administração ASN (demo)',
-      email: DEMO_ADMIN_EMAIL,
-      passwordHash: await bcrypt.hash(DEMO_ADMIN_PASSWORD, BCRYPT_ROUNDS),
-      role: 'ADMIN',
-      emailVerifiedAt: new Date(),
-    },
+  await seedUser({
+    name: 'Administração ASN (demo)',
+    email: DEMO_ADMIN_EMAIL,
+    passwordHash: await bcrypt.hash(DEMO_ADMIN_PASSWORD, BCRYPT_ROUNDS),
+    role: 'ADMIN',
   });
 }
 
@@ -943,22 +1004,18 @@ async function seedProducts(
   return createdProducts;
 }
 
-async function seedReviewers() {
-  const reviewers = [
-    { name: 'Marina Costa', email: 'marina.costa@example.com' },
-    { name: 'Rafael Andrade', email: 'rafael.andrade@example.com' },
-    { name: 'Juliana Prado', email: 'juliana.prado@example.com' },
-    { name: 'Lucas Ferreira', email: 'lucas.ferreira@example.com' },
-    { name: 'Beatriz Nunes', email: 'beatriz.nunes@example.com' },
-    { name: 'Thiago Mendes', email: 'thiago.mendes@example.com' },
-    { name: 'Camila Rocha', email: 'camila.rocha@example.com' },
-    { name: 'Diego Salles', email: 'diego.salles@example.com' },
-  ];
-
+/** Sem senha — avaliadores fictícios nunca logam, só assinam as reviews de demonstração. */
+async function seedReviewers(): Promise<{ id: string; name: string }[]> {
   return Promise.all(
-    reviewers.map((reviewer) =>
-      prisma.user.create({ data: { name: reviewer.name, email: reviewer.email } }),
-    ),
+    REVIEWER_SEEDS.map(async (reviewer) => ({
+      id: await seedUser({
+        name: reviewer.name,
+        email: reviewer.email,
+        passwordHash: null,
+        role: 'CUSTOMER',
+      }),
+      name: reviewer.name,
+    })),
   );
 }
 
@@ -1053,35 +1110,47 @@ async function seedReviewsAndQuestions(
       (_, i) => REVIEW_POOL[(productIndex + i) % REVIEW_POOL.length]!,
     );
 
-    await prisma.review.createMany({
-      data: selectedReviews.map((review, i) => ({
-        productId: product.id,
-        userId: reviewers[(productIndex + i) % reviewers.length]!.id,
-        rating: review.rating,
-        title: review.title,
-        comment: review.comment,
-        isVerifiedPurchase: review.isVerifiedPurchase,
-        imageUrls: review.withPhoto ? [art(productIndex + i)] : [],
-        videoUrls: [],
-      })),
+    // Review migrou pro Firestore na Fase 4 — doc em
+    // `products/{slug}/reviews/{userId}` (um por avaliador por produto,
+    // mesmo id do `ReviewsRepository.create` real).
+    const batch = db.batch();
+    selectedReviews.forEach((review, i) => {
+      const reviewer = reviewers[(productIndex + i) % reviewers.length]!;
+      batch.set(
+        db.collection('products').doc(product.slug).collection('reviews').doc(reviewer.id),
+        {
+          userId: reviewer.id,
+          authorName: reviewer.name,
+          rating: review.rating,
+          title: review.title,
+          comment: review.comment,
+          imageUrls: review.withPhoto ? [art(productIndex + i)] : [],
+          videoUrls: [],
+          isVerifiedPurchase: review.isVerifiedPurchase,
+          helpfulCount: 0,
+          createdAt: Timestamp.now(),
+        },
+      );
     });
+    await batch.commit();
 
-    const averageRating =
-      Math.round(
-        (selectedReviews.reduce((sum, review) => sum + review.rating, 0) / selectedReviews.length) *
-          10,
-      ) / 10;
+    // Contadores denormalizados no doc do produto — mesmo padrão que
+    // `ReviewsRepository.create` incrementa numa transação real, só que
+    // calculado de uma vez aqui (não há concorrência num seed).
+    const ratingSum = selectedReviews.reduce((sum, review) => sum + review.rating, 0);
+    const reviewCount = selectedReviews.length;
+    const averageRating = Math.round((ratingSum / reviewCount) * 10) / 10;
+    const ratingHistogram: Record<string, number> = {};
+    for (const review of selectedReviews) {
+      const key = String(review.rating);
+      ratingHistogram[key] = (ratingHistogram[key] ?? 0) + 1;
+    }
 
-    // Denormalização feita aqui, na escrita — é exatamente o padrão que o
-    // módulo de Avaliações real (`ReviewsRepository.create`) precisa seguir
-    // sempre que uma review for criada, editada ou removida. Product mora no
-    // Firestore desde a Fase 3 — o contador segue junto, assim como o
-    // espelho no Algolia (afeta a ordenação "Melhor avaliados").
     await db
       .collection('products')
       .doc(product.slug)
-      .set({ averageRating, reviewCount: selectedReviews.length }, { merge: true });
-    await algolia.updateRating(product.slug, averageRating, selectedReviews.length);
+      .set({ ratingSum, reviewCount, averageRating, ratingHistogram }, { merge: true });
+    await algolia.updateRating(product.slug, averageRating, reviewCount);
   }
 
   for (const [productIndex, product] of productsWithQuestions.entries()) {
