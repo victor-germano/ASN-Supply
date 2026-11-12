@@ -15,7 +15,6 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(3400),
-    DATABASE_URL: z.string().url(),
     // Reservada (cache/filas futuros) — nada na API conecta no Redis hoje,
     // então a hospedagem não precisa de um.
     REDIS_URL: optionalUrl,
@@ -49,13 +48,11 @@ const envSchema = z
     // de quem paga (ex: "Maria S."). Preenchida = aviso na tela de pagamento.
     PIX_HOLDER_DISPLAY_NAME: z.string().optional(),
     // Upload de imagem no painel admin — ver `ImageUploader`/`uploads.module.ts`.
-    // Sem ela, as imagens ficam no banco da loja (`DatabaseImageUploader`) e
-    // são servidas pela própria API em `API_PUBLIC_URL`.
+    // Único adapter desde a Fase 7 da migração (o fallback que guardava a
+    // imagem no Postgres saiu junto com o Prisma) — por isso é obrigatória em
+    // produção (ver `.refine` abaixo), mesmo sendo `z.string().optional()`
+    // aqui (opcional só pra não travar o `validateEnv` em dev/teste sem ela).
     CLOUDINARY_URL: z.string().optional(),
-    // Endereço público da API (ex: https://api.asnsupply.com.br), sem `/v1`
-    // — vira o início da URL das imagens enviadas pelo painel. Em
-    // desenvolvimento cai em http://localhost:PORT.
-    API_PUBLIC_URL: optionalUrl,
     // Reservadas — alternativa a Cloudinary nunca implementada (só um dos
     // dois adapters foi construído; mesmo espírito de só ter
     // `NullPaymentGateway` até um gateway real ser escolhido).
@@ -113,20 +110,20 @@ const envSchema = z
     // JWT (ver AuthModule/RolesGuard), não bearer token fixo. Ver comentário
     // em `apps/api/src/modules/admin/admin.module.ts`.
     ADMIN_API_KEY: z.string().optional(),
-    // Migração Postgres→Firestore em andamento (ver plano em
-    // C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md): o JSON da
-    // service account do Firebase, em base64 numa linha só — evita o
+    // JSON da service account do Firebase, em base64 numa linha só — evita o
     // problema conhecido de chave privada multi-linha quebrar na UI de
-    // variáveis do Railway. Opcional por ora (DATABASE_URL/Postgres ainda é
-    // quem roda em produção); passa a obrigatória quando o corte acontecer.
+    // variáveis do Railway. Obrigatória em produção (ver `.refine` abaixo) —
+    // é a única fonte de dados da aplicação desde a Fase 7 da migração
+    // Postgres→Firestore (ver plano em
+    // C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md).
     // Alternativa só para dev local: `GOOGLE_APPLICATION_CREDENTIALS`
     // apontando pro arquivo da service account (lido direto via
     // `process.env`, fora deste schema) — ver `firebase-admin.ts`.
     // Sem variável de bucket: upload de imagem usa Cloudinary, não o
     // Firebase Storage (ver `CLOUDINARY_URL` e `firestore.service.ts`).
     FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
-    // Busca/filtro do catálogo (ver mesmo plano) — índice `products` e suas
-    // réplicas de ordenação.
+    // Busca/filtro do catálogo — índice `products` e suas réplicas de
+    // ordenação (ver `AlgoliaService`).
     ALGOLIA_APP_ID: z.string().optional(),
     ALGOLIA_ADMIN_API_KEY: z.string().optional(),
     ALGOLIA_INDEX_NAME: z.string().default('products'),
@@ -142,11 +139,18 @@ const envSchema = z
     message: 'INTERNAL_API_KEY é obrigatória em produção (mesmo valor no .env do site)',
     path: ['INTERNAL_API_KEY'],
   })
-  // Sem isto, as fotos enviadas pelo painel seriam gravadas no catálogo
-  // com endereço `http://localhost` e não apareceriam para ninguém.
-  .refine((env) => env.NODE_ENV !== 'production' || env.CLOUDINARY_URL || env.API_PUBLIC_URL, {
-    message: 'Em produção, defina API_PUBLIC_URL (endereço público da API) ou CLOUDINARY_URL',
-    path: ['API_PUBLIC_URL'],
+  // Único adapter de upload de imagem desde a Fase 7 (o fallback que
+  // guardava a imagem no Postgres saiu junto com o Prisma) — sem ela, a
+  // rota de upload do painel nem sobe.
+  .refine((env) => env.NODE_ENV !== 'production' || env.CLOUDINARY_URL, {
+    message: 'CLOUDINARY_URL é obrigatória em produção (upload de imagem do painel admin)',
+    path: ['CLOUDINARY_URL'],
+  })
+  // Única fonte de dados da aplicação desde a Fase 7 da migração
+  // Postgres→Firestore.
+  .refine((env) => env.NODE_ENV !== 'production' || env.FIREBASE_SERVICE_ACCOUNT_BASE64, {
+    message: 'FIREBASE_SERVICE_ACCOUNT_BASE64 é obrigatória em produção',
+    path: ['FIREBASE_SERVICE_ACCOUNT_BASE64'],
   })
   // O valor do `.env.example` é público (está no GitHub): com ele, qualquer
   // um assinaria um token de administrador.

@@ -7,10 +7,16 @@
  *   pnpm exec tsx scripts/create-coupon.ts --code FRETE20 --amount 2000
  *
  * Opcionais: --min-order <centavos> --max-redemptions <n> --expires-in-days <n>
+ *
+ * Coupon migrou pro Firestore na Fase 3 (ver
+ * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md) — doc em
+ * `coupons/{codeNormalizado}` (ver `CouponDoc` em `src/modules/orders/coupon.ts`).
  */
-import { PrismaClient } from '../generated/client';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getDb } from '../src/config/firebase-admin';
+import type { CouponDoc } from '../src/modules/orders/coupon';
 
-const prisma = new PrismaClient();
+const db = getDb();
 
 function readArg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -34,29 +40,30 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = await prisma.coupon.findUnique({ where: { code } });
-  if (existing) {
+  const ref = db.collection('coupons').doc(code);
+  const existing = await ref.get();
+  if (existing.exists) {
     console.error(`Já existe um cupom com o código "${code}".`);
     process.exit(1);
   }
 
   const expiresAt = expiresInDaysRaw
-    ? new Date(Date.now() + Number(expiresInDaysRaw) * 24 * 60 * 60 * 1000)
+    ? Timestamp.fromMillis(Date.now() + Number(expiresInDaysRaw) * 24 * 60 * 60 * 1000)
     : null;
 
-  const created = await prisma.coupon.create({
-    data: {
-      code,
-      percentageOff: percentRaw ? Number(percentRaw) : null,
-      amountOffInCents: amountRaw ? Number(amountRaw) : null,
-      minOrderInCents: minOrderRaw ? Number(minOrderRaw) : null,
-      maxRedemptions: maxRedemptionsRaw ? Number(maxRedemptionsRaw) : null,
-      expiresAt,
-      isActive: true,
-    },
-  });
+  const doc: CouponDoc = {
+    code,
+    percentageOff: percentRaw ? Number(percentRaw) : null,
+    amountOffInCents: amountRaw ? Number(amountRaw) : null,
+    minOrderInCents: minOrderRaw ? Number(minOrderRaw) : null,
+    maxRedemptions: maxRedemptionsRaw ? Number(maxRedemptionsRaw) : null,
+    redemptionCount: 0,
+    expiresAt,
+    isActive: true,
+  };
+  await ref.set(doc);
 
-  console.log(`Cupom "${created.code}" criado.`);
+  console.log(`Cupom "${code}" criado.`);
 }
 
 main()
@@ -64,4 +71,4 @@ main()
     console.error(error);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => process.exit(process.exitCode ?? 0));

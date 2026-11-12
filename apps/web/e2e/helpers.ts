@@ -15,9 +15,9 @@ export function uniqueEmail(prefix = 'e2e'): string {
 }
 
 /**
- * Conta admin fixa semeada por `prisma/seed.ts` (`seedE2EFixtures`) — só
- * existe em bancos de desenvolvimento/demonstração (o seed nunca roda em
- * produção), nunca uma credencial de verdade.
+ * Conta admin fixa semeada por `apps/api/scripts/seed.ts` (`seedE2EFixtures`)
+ * — só existe em bancos de desenvolvimento/demonstração (o seed nunca roda
+ * em produção), nunca uma credencial de verdade.
  */
 export const E2E_ADMIN_EMAIL = 'e2e.admin@example.com';
 export const E2E_ADMIN_PASSWORD = 'SenhaAdminE2E123!';

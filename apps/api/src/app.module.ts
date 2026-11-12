@@ -4,7 +4,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
-import { PrismaModule } from './modules/prisma/prisma.module';
 import { FirestoreModule } from './modules/firestore/firestore.module';
 import { AlgoliaModule } from './modules/algolia/algolia.module';
 import { HealthModule } from './modules/health/health.module';
@@ -45,7 +44,6 @@ import { RecoveryModule } from './modules/recovery/recovery.module';
         limit: 300,
       },
     ]),
-    PrismaModule,
     FirestoreModule,
     AlgoliaModule,
     HealthModule,

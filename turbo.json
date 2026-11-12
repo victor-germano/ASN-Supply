@@ -4,8 +4,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "prisma/**", "*.config.*", "package.json"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "generated/**"]
+      "inputs": ["src/**", "*.config.*", "package.json"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
       "cache": false,
@@ -22,10 +22,6 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": []
-    },
-    "db:generate": {
-      "cache": false,
-      "outputs": ["generated/**"]
     }
   }
 }

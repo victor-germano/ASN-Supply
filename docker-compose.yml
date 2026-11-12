@@ -1,24 +1,6 @@
 name: asn-supply
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: asn-supply-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: asn
-      POSTGRES_PASSWORD: asn
-      POSTGRES_DB: asn_supply
-    ports:
-      - "5432:5432"
-    volumes:
-      - asn_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U asn -d asn_supply"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     container_name: asn-supply-redis
@@ -34,5 +16,4 @@ services:
       retries: 10
 
 volumes:
-  asn_postgres_data:
   asn_redis_data:

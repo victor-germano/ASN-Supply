@@ -8,8 +8,8 @@ import { getLookItems } from '@/services/product.service';
 /**
  * "Complete o look" — peças de outras lojas (Shein, AliExpress, Shopee,
  * Mercado Livre etc.) curadas manualmente para combinar com o tênis
- * escolhido (ver comentário do model `LookItem` no schema Prisma para o
- * porquê de ser curadoria manual, não integração ao vivo). Sem itens
+ * escolhido (ver comentário no topo de `apps/api/scripts/add-look-item.ts`
+ * para o porquê de ser curadoria manual, não integração ao vivo). Sem itens
  * cadastrados pra este produto ainda, a seção inteira não renderiza nada —
  * não é um estado de erro, é só "ninguém curou isso ainda".
  *

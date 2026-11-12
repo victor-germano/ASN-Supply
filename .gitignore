@@ -7,7 +7,6 @@ node_modules/
 dist/
 build/
 out/
-generated/
 
 # turborepo
 .turbo/
@@ -38,11 +37,10 @@ Thumbs.db
 # Claude Code — estado local de sessão, não faz parte do produto
 .claude/
 
-# prisma
-apps/api/prisma/generated/
-
 # typescript incremental build cache
 *.tsbuildinfo
 
-# Imagens enviadas pelo painel admin em desenvolvimento (LocalDiskImageUploader)
+# Imagens enviadas pelo painel admin antes da Cloudinary virar obrigatória
+# (adapter antigo descartado na Fase 7 da migração) — pasta local morta,
+# mantida ignorada por precaução.
 apps/api/uploads/

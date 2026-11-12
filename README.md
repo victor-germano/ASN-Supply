@@ -34,7 +34,7 @@ packages/
   tamanho de fonte.
 - **NestJS com Clean Architecture por feature**: cada módulo de domínio organiza
   `controllers / dto / entities / use-cases / repositories` — regra de negócio isolada de
-  framework e de infraestrutura (Prisma, Redis, gateways de pagamento).
+  framework e de infraestrutura (Firestore, Algolia, gateways de pagamento).
 
 ## Identidade visual
 
@@ -50,13 +50,15 @@ Definidos em [`packages/config/tailwind/tokens.js`](packages/config/tailwind/tok
 
 ## Rodando localmente
 
-Pré-requisitos: Node 20+, pnpm 9+, Docker (para Postgres/Redis locais).
+Pré-requisitos: Node 20+, pnpm 9+, Docker (para Redis local), um projeto
+Firebase (Firestore) e um app Algolia — ver `docs/DEPLOY.md` seção 1 para
+criar os dois (nível gratuito dos dois serve).
 
 ```bash
 # 1. Instalar dependências
 pnpm install
 
-# 2. Subir Postgres + Redis
+# 2. Subir Redis
 docker compose up -d
 
 # 3. Configurar variáveis de ambiente
@@ -65,12 +67,18 @@ cp apps/web/.env.example apps/web/.env.local
 #    + gere UM segredo e coloque o MESMO valor em INTERNAL_API_KEY nos dois
 #      arquivos (sem ele, a API vê todos os visitantes como um só):
 node -e "console.log(require('crypto').randomBytes(36).toString('base64url'))"
+#    + preencha FIREBASE_SERVICE_ACCOUNT_BASE64 (ou, só em dev local,
+#      GOOGLE_APPLICATION_CREDENTIALS apontando pro .json baixado do
+#      Firebase Console) e ALGOLIA_APP_ID/ALGOLIA_ADMIN_API_KEY/CLOUDINARY_URL
+#      em apps/api/.env — ver docs/DEPLOY.md seção 3.
 
-# 4. Gerar client Prisma e rodar a primeira migração
-pnpm --filter @asn/api db:generate
-pnpm --filter @asn/api db:migrate:dev
+# 4. Configurar o índice do Algolia (uma vez por projeto Algolia novo)
+pnpm --filter @asn/api exec tsx scripts/configure-algolia.ts
 
-# 5. Subir tudo em modo dev (web em :3100, api em :3400)
+# 5. Carregar o catálogo de demonstração no Firestore
+pnpm --filter @asn/api db:seed
+
+# 6. Subir tudo em modo dev (web em :3100, api em :3400)
 pnpm dev
 ```
 
@@ -80,12 +88,11 @@ A ASN usa portas exclusivas para rodar lado a lado com outros projetos na mesma
 máquina (a Tech N ocupa 3000, 3001, 3333 e 8080) sem que um site acabe falando
 com a API do outro:
 
-| Serviço  | Porta                                    |
-| -------- | ---------------------------------------- |
-| Site     | `3100`                                   |
-| API      | `3400`                                   |
-| Postgres | `5432` (container `asn-supply-postgres`) |
-| Redis    | `6379` (container `asn-supply-redis`)    |
+| Serviço | Porta                                 |
+| ------- | ------------------------------------- |
+| Site    | `3100`                                |
+| API     | `3400`                                |
+| Redis   | `6379` (container `asn-supply-redis`) |
 
 ### Quando o domínio próprio estiver pronto
 

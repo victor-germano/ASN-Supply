@@ -15,18 +15,6 @@ jobs:
     name: Lint, typecheck, test & build
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: asn
-          POSTGRES_PASSWORD: asn
-          POSTGRES_DB: asn_supply
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U asn -d asn_supply"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -36,7 +24,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://asn:asn@localhost:5432/asn_supply?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-only-secret-must-be-at-least-32-characters-long
       NEXT_PUBLIC_SITE_URL: http://localhost:3100
@@ -55,12 +42,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm --filter @asn/api db:generate
-
-      - name: Run database migrations
-        run: pnpm --filter @asn/api exec prisma migrate deploy
 
       - name: Lint
         run: pnpm lint
@@ -82,18 +63,6 @@ jobs:
     # num erro de lint que já teria sido pego antes.
     needs: quality
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: asn
-          POSTGRES_PASSWORD: asn
-          POSTGRES_DB: asn_supply
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U asn -d asn_supply"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -103,7 +72,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://asn:asn@localhost:5432/asn_supply?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-only-secret-must-be-at-least-32-characters-long
       # Lida pela API e pelo servidor do site (mesmo valor nos dois) — sem
@@ -111,8 +79,20 @@ jobs:
       INTERNAL_API_KEY: ci-only-internal-key-at-least-32-characters
       NODE_ENV: production
       PORT: 3400
-      # Exigida em produção: início da URL das imagens enviadas pelo painel.
-      API_PUBLIC_URL: http://localhost:3400
+      # ATENÇÃO — gap conhecido (ver docs/DEPLOY.md e discussão da Fase 7 da
+      # migração Postgres→Firestore): estas três ficam obrigatórias em
+      # produção desde que o Prisma/Postgres saiu do projeto, mas este repo
+      # não tem nenhum Firebase/Algolia dedicado a CI configurado (zero
+      # secrets cadastrados) — sem valores reais aqui, a API se recusa a
+      # subir no passo "Start API and Web" abaixo, e este job nunca chega a
+      # rodar de verdade. Precisa de um projeto Firebase + app Algolia
+      # dedicados a teste (nunca o de produção) com os segredos cadastrados
+      # em Settings → Secrets and variables → Actions antes deste job voltar
+      # a funcionar.
+      CLOUDINARY_URL: ${{ secrets.CI_CLOUDINARY_URL }}
+      FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.CI_FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+      ALGOLIA_APP_ID: ${{ secrets.CI_ALGOLIA_APP_ID }}
+      ALGOLIA_ADMIN_API_KEY: ${{ secrets.CI_ALGOLIA_ADMIN_API_KEY }}
       # Inline-adas no bundle do client NO MOMENTO DO BUILD (Next.js não lê
       # `NEXT_PUBLIC_*` em runtime) — precisam estar corretas ANTES do passo
       # de build abaixo, não só na hora de rodar os testes.
@@ -142,14 +122,8 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @asn/web exec playwright install --with-deps chromium
 
-      - name: Generate Prisma client
-        run: pnpm --filter @asn/api db:generate
-
-      - name: Run database migrations
-        run: pnpm --filter @asn/api exec prisma migrate deploy
-
       # O seed de teste (contas admin de e2e, apaga tudo antes) se recusa a
-      # rodar com NODE_ENV=production — aqui o banco é descartável.
+      # rodar com NODE_ENV=production — aqui o Firestore de teste é descartável.
       - name: Seed database
         run: pnpm --filter @asn/api db:seed
         env:
