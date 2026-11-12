@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Timestamp } from 'firebase-admin/firestore';
 import type { AdminDashboardStats, OrderStatus } from '@asn/types';
-import { PrismaService } from '../prisma/prisma.service';
 import { FirestoreService } from '../firestore/firestore.service';
 import { toMoney } from '../../common/money.mapper';
 import { isRevenueStatus } from './revenue-status';
@@ -17,23 +16,24 @@ interface OrderDoc {
 }
 
 /**
- * `totalCustomers` continua no Postgres (User só migra numa fase futura);
- * o resto (Order, Product) migrou pro Firestore na Fase 3 — ver
+ * Tudo aqui (Order, Product, User) já migrou pro Firestore — ver
  * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md.
+ * `totalCustomers` lia `prisma.user.count` até a Fase 4 — parou de ver
+ * clientes novos desde que User foi para o Firestore (mesma categoria de
+ * bug já encontrada em `isVerifiedPurchase`/`AdminUsersRepository.orderCount`
+ * e no Provador Digital; corrigido junto).
  */
 @Injectable()
 export class AdminDashboardRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly firestore: FirestoreService,
-  ) {}
+  constructor(private readonly firestore: FirestoreService) {}
 
   async getStats(): Promise<AdminDashboardStats> {
-    const [ordersSnapshot, totalProductsCount, totalCustomers] = await Promise.all([
+    const [ordersSnapshot, totalProductsCount, totalCustomersCount] = await Promise.all([
       this.firestore.db.collection('orders').get(),
       this.firestore.db.collection('products').where('isPublished', '==', true).count().get(),
-      this.prisma.user.count({ where: { role: 'CUSTOMER' } }),
+      this.firestore.db.collection('users').where('role', '==', 'CUSTOMER').count().get(),
     ]);
+    const totalCustomers = totalCustomersCount.data().count;
 
     const orders = ordersSnapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() as OrderDoc }));
 
