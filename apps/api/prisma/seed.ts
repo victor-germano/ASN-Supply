@@ -19,11 +19,9 @@
  */
 import bcrypt from 'bcryptjs';
 import { Timestamp } from 'firebase-admin/firestore';
-import { PrismaClient } from '../generated/client';
 import { getDb } from '../src/config/firebase-admin';
 import { AlgoliaService, type AlgoliaProductRecord } from '../src/modules/algolia/algolia.service';
 
-const prisma = new PrismaClient();
 const db = getDb();
 // `AlgoliaService` não depende de DI do Nest (só lê env var no construtor)
 // — reaproveitado direto aqui, fora do contexto do Nest, como os outros
@@ -128,15 +126,27 @@ async function deleteDemoUser(email: string): Promise<void> {
   await Promise.all([userRef.delete(), emailLockRef.delete()]);
 }
 
-async function resetCatalogData(): Promise<void> {
-  // Postgres — só o que continua lá (WishlistItem/CustomerActivity não
-  // migraram ainda; Review migrou pro Firestore na Fase 4, User também —
-  // ver plano).
-  await prisma.wishlistItem.deleteMany();
+/**
+ * Favoritos de TODOS os usuários — `WishlistItem` migrou pro Firestore na
+ * Fase 5, subcoleção `users/{id}/wishlist`. Diferente de `deleteDemoUser`
+ * (que só apaga contas fictícias por e-mail), aqui o alvo é mesmo "zerar o
+ * favorito de todo mundo", inclusive de conta real — só seguro porque
+ * `db:seed` (ao contrário de `db:seed:production`) é uma ferramenta de
+ * pré-lançamento: depois que a loja tiver clientes de verdade, não se roda
+ * mais (ver `assertSafeToSeed`).
+ */
+async function resetAllWishlists(): Promise<void> {
+  const usersSnapshot = await db.collection('users').get();
+  await Promise.all(
+    usersSnapshot.docs.map((user) => deleteAllDocs(user.ref.collection('wishlist'))),
+  );
+}
 
+async function resetCatalogData(): Promise<void> {
   // Contas de demonstração (admins de e2e + avaliadores fictícios) —
   // reseedadas a cada rodada junto com o que elas referenciam.
   await Promise.all(ALL_DEMO_EMAILS.map((email) => deleteDemoUser(email)));
+  await resetAllWishlists();
 
   // Firestore — catálogo (+ reviews, migradas pro Firestore na Fase 4),
   // carrinho, pedido e cupom.
@@ -1249,8 +1259,7 @@ main()
     console.error('Falha ao rodar o seed:', error);
     process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
     // O SDK do Firebase Admin mantém o canal gRPC aberto — sem isto, o
     // processo nunca terminaria sozinho depois do seed concluído.
     process.exit(process.exitCode ?? 0);

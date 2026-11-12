@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import type { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { EnvConfig } from '../../config/env.validation';
-import { PrismaService } from '../prisma/prisma.service';
 import { FirestoreService } from '../firestore/firestore.service';
 import { TextMessageSender } from '../messaging/text-message-sender';
 import { recoveryReminderSms } from '../messaging/templates';
@@ -21,10 +20,24 @@ interface UserDoc {
   marketingOptIn: boolean;
 }
 
+interface ActivityDoc {
+  userId: string;
+  productId: string;
+  type: 'PRODUCT_VIEW' | 'CART_ADD';
+  createdAt: Timestamp;
+}
+
 interface ActivityRow {
-  type: string;
+  type: 'PRODUCT_VIEW' | 'CART_ADD';
   createdAt: Date;
   productId: string;
+}
+
+interface RecoveryMessageDoc {
+  userId: string;
+  productName: string;
+  body: string;
+  sentAt: Timestamp;
 }
 
 interface CandidateContext {
@@ -49,15 +62,12 @@ const ACTIVITIES_PER_USER = 20;
  * em `decideRecovery` (testadas); aqui é só buscar candidatos, escolher o
  * produto a citar e registrar o envio.
  *
- * `User` migrou pro Firestore na Fase 4 (ver
- * C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md) —
- * `CustomerActivity`/`RecoveryMessage` continuam no Postgres (não migram
- * até a Fase 5), então o `findMany` com `include` encadeado de antes
- * (User → activities/orders/recoveryMessages/cart, tudo numa query só) não
- * é mais possível: usuário e atividade vivem em bancos diferentes agora.
- * A consulta inverte de direção — começa pela atividade recente (ainda no
- * Postgres, com o filtro de tempo), resolve os usuários distintos, e só
- * então busca o resto (Firestore: usuário, pedidos, carrinho) por usuário.
+ * `CustomerActivity`/`RecoveryMessage` migraram pro Firestore na Fase 5
+ * (ver C:\Users\vgerm\.claude\plans\refactored-nibbling-corbato.md) — User
+ * já estava lá desde a Fase 4. Com tudo no mesmo banco, o candidato inicial
+ * volta a ser uma única consulta (atividade recente, filtro só em
+ * `createdAt`, sem igualdade nenhuma — índice de campo único nativo, sem
+ * índice composto), e o resto é resolvido por usuário em paralelo.
  *
  * Roda dentro da própria API (uma instância). Se um dia houver várias
  * instâncias, isto precisa de um lock (ex: Redis) pra não enviar em dobro.
@@ -68,7 +78,6 @@ export class RecoveryReminderService {
   private running = false;
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly firestore: FirestoreService,
     private readonly sender: TextMessageSender,
     private readonly config: ConfigService<EnvConfig, true>,
@@ -94,22 +103,25 @@ export class RecoveryReminderService {
     const delayMinutes = this.config.get('RECOVERY_REMINDER_DELAY_MINUTES', { infer: true });
     const since = new Date(now.getTime() - RECOVERY_MAX_AGE_HOURS * 3_600_000);
 
-    // Usuários distintos com atividade recente — mais recentes primeiro,
-    // até o teto da rodada (aproximação do antigo "até 200 usuários": agora
-    // é "até 200 usuários distintos entre os mais recentemente ativos").
-    const recentActivity = await this.prisma.customerActivity.findMany({
-      where: { createdAt: { gte: since } },
-      distinct: ['userId'],
-      orderBy: { createdAt: 'desc' },
-      take: BATCH_SIZE,
-      select: { userId: true },
-    });
-    if (recentActivity.length === 0) return 0;
+    // Único filtro é `createdAt >= since` — sem igualdade nenhuma junto,
+    // então é um range query de campo único (grátis, sem índice composto).
+    // Usuários distintos com atividade recente, mais recentes primeiro, até
+    // o teto da rodada.
+    const recentActivitySnapshot = await this.firestore.db
+      .collection('customerActivities')
+      .where('createdAt', '>=', Timestamp.fromDate(since))
+      .get();
+    const recentUserIds = Array.from(
+      new Map(
+        recentActivitySnapshot.docs
+          .map((doc) => doc.data() as ActivityDoc)
+          .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+          .map((activity) => [activity.userId, activity.userId] as const),
+      ).values(),
+    ).slice(0, BATCH_SIZE);
+    if (recentUserIds.length === 0) return 0;
 
-    const candidates = await this.resolveCandidates(
-      recentActivity.map((a) => a.userId),
-      since,
-    );
+    const candidates = await this.resolveCandidates(recentUserIds, since);
     if (candidates.length === 0) return 0;
 
     const productIds = new Set(candidates.flatMap((c) => c.activities.map((a) => a.productId)));
@@ -157,9 +169,12 @@ export class RecoveryReminderService {
 
       try {
         await this.sender.send({ to: candidate.phone, body });
-        await this.prisma.recoveryMessage.create({
-          data: { userId: candidate.userId, productName: chosenProduct.name, body },
-        });
+        await this.firestore.db.collection('recoveryMessages').add({
+          userId: candidate.userId,
+          productName: chosenProduct.name,
+          body,
+          sentAt: Timestamp.now(),
+        } satisfies RecoveryMessageDoc);
         sent++;
       } catch (error) {
         // Falhou o envio: sem registro, a próxima rodada tenta de novo.
@@ -171,12 +186,10 @@ export class RecoveryReminderService {
 
   /**
    * Resolve, por usuário distinto com atividade recente: dados do usuário
-   * (Firestore — filtra opt-in/celular), as próprias atividades (Postgres),
-   * o último pedido (Firestore, pra `decideRecovery` não insistir em quem
-   * já comprou) e o carrinho atual (Firestore, pra priorizar o que ficou
-   * dentro dele). Descarta quem não tem opt-in ou celular antes de buscar
-   * o resto — a maioria dos custos de leitura só vale a pena pra quem
-   * sobrevive esse primeiro filtro.
+   * (filtra opt-in/celular), as próprias atividades, o último pedido (pra
+   * `decideRecovery` não insistir em quem já comprou) e o carrinho atual
+   * (pra priorizar o que ficou dentro dele). Descarta quem não tem opt-in
+   * ou celular antes de buscar o resto.
    */
   private async resolveCandidates(userIds: string[], since: Date): Promise<CandidateContext[]> {
     const userDocs = await this.firestore.db.getAll(
@@ -197,31 +210,12 @@ export class RecoveryReminderService {
         .map((doc) => [doc.id, doc.data() as UserDoc] as const),
     );
 
-    const [activitiesByUser, lastReminderByUser] = await Promise.all([
-      this.prisma.customerActivity.findMany({
-        where: { userId: { in: eligibleIds }, createdAt: { gte: since } },
-        orderBy: { createdAt: 'desc' },
-        select: { userId: true, type: true, createdAt: true, productId: true },
-      }),
-      this.prisma.recoveryMessage.findMany({
-        where: { userId: { in: eligibleIds } },
-        orderBy: { sentAt: 'desc' },
-        distinct: ['userId'],
-        select: { userId: true, sentAt: true },
-      }),
-    ]);
-
-    const lastReminderByUserId = new Map(
-      lastReminderByUser.map((row) => [row.userId, row.sentAt] as const),
-    );
-
     return Promise.all(
       eligibleIds.map(async (userId) => {
-        const activities = activitiesByUser
-          .filter((row) => row.userId === userId)
-          .slice(0, ACTIVITIES_PER_USER);
-        const [lastOrderAt, inCartIds] = await Promise.all([
+        const [activities, lastOrderAt, lastReminderAt, inCartIds] = await Promise.all([
+          this.userActivities(userId, since),
           this.lastOrderAt(userId),
+          this.lastReminderAt(userId),
           this.cartProductIds(userId),
         ]);
         return {
@@ -230,11 +224,41 @@ export class RecoveryReminderService {
           phone: userById.get(userId)!.phone!,
           activities,
           lastOrderAt,
-          lastReminderAt: lastReminderByUserId.get(userId) ?? null,
+          lastReminderAt,
           inCartIds,
         } satisfies CandidateContext;
       }),
     );
+  }
+
+  /** Igualdade só em `userId` (índice de campo único, grátis) — janela de tempo e limite filtrados/ordenados em memória. */
+  private async userActivities(userId: string, since: Date): Promise<ActivityRow[]> {
+    const snapshot = await this.firestore.db
+      .collection('customerActivities')
+      .where('userId', '==', userId)
+      .get();
+    return snapshot.docs
+      .map((doc) => doc.data() as ActivityDoc)
+      .filter((activity) => activity.createdAt.toMillis() >= since.getTime())
+      .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+      .slice(0, ACTIVITIES_PER_USER)
+      .map((activity) => ({
+        type: activity.type,
+        createdAt: activity.createdAt.toDate(),
+        productId: activity.productId,
+      }));
+  }
+
+  private async lastReminderAt(userId: string): Promise<Date | null> {
+    const snapshot = await this.firestore.db
+      .collection('recoveryMessages')
+      .where('userId', '==', userId)
+      .get();
+    if (snapshot.empty) return null;
+    const latest = Math.max(
+      ...snapshot.docs.map((doc) => (doc.data() as RecoveryMessageDoc).sentAt.toMillis()),
+    );
+    return new Date(latest);
   }
 
   private async lastOrderAt(userId: string): Promise<Date | null> {
