@@ -1136,9 +1136,9 @@ async function seedReviewsAndQuestions(
 
     // Contadores denormalizados no doc do produto — mesmo padrão que
     // `ReviewsRepository.create` incrementa numa transação real, só que
-    // calculado de uma vez aqui (não há concorrência num seed).
+    // calculado de uma vez aqui (não há concorrência num seed). `reviewCount`
+    // já existe neste escopo (quantas reviews este produto recebe).
     const ratingSum = selectedReviews.reduce((sum, review) => sum + review.rating, 0);
-    const reviewCount = selectedReviews.length;
     const averageRating = Math.round((ratingSum / reviewCount) * 10) / 10;
     const ratingHistogram: Record<string, number> = {};
     for (const review of selectedReviews) {
