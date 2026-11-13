@@ -67,9 +67,10 @@ export function searchProducts(
       page: pagination.page,
       pageSize: pagination.pageSize,
     },
-    // Não cacheado: cada combinação de filtros é uma URL diferente e a
-    // listagem precisa refletir estoque/preço com a menor defasagem
-    // possível — o custo de recomputar é baixo (é uma query indexada).
+    // Cacheado (ISR) igual a `getProductFacets` — cada busca no Algolia
+    // consome a cota gratuita de operações; sem isso, toda visita/crawler
+    // na PLP gastava uma operação, esgotando a cota do plano.
+    revalidateSeconds: CATALOG_REVALIDATE_SECONDS,
   });
 }
 
