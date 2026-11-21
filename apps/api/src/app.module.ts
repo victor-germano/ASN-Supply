@@ -20,6 +20,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { AdminProductsModule } from './modules/admin-products/admin-products.module';
 import { AdminCatalogModule } from './modules/admin-catalog/admin-catalog.module';
+import { AdminMarketingModule } from './modules/admin-marketing/admin-marketing.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
@@ -60,6 +61,7 @@ import { RecoveryModule } from './modules/recovery/recovery.module';
     CouponsModule,
     AdminProductsModule,
     AdminCatalogModule,
+    AdminMarketingModule,
     UploadsModule,
     AdminUsersModule,
     AdminDashboardModule,
